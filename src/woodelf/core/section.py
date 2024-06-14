@@ -6,7 +6,7 @@ import sh
 
 from .. import api, Elf, SectionHeaderEditor
 from ..constants import SECTION, EDITOR
-from ..util import readelf_hexdump_to_bytes
+from ..util import readelf_hexdump_to_bytearray
 
 
 class Section(api.Section):
@@ -19,7 +19,7 @@ class Section(api.Section):
         self.tag = section
         self.readsection = elf.readelf.bake(x=self.name)
 
-    def read_content(self, rev_idx: int = -1) -> bytes:
+    def read_content(self, rev_idx: int = -1) -> bytearray:
         rev = self.elf.revisions[rev_idx]
         cache = self.elf.get_cache(rev, 'sec: ' + str(self.tag))
 
@@ -28,7 +28,7 @@ class Section(api.Section):
 
         if self.name == str(SECTION.SHSTRTAB):
             # Unfortunately, objdump cannot dump .shstrtab
-            content = readelf_hexdump_to_bytes(self.readsection(rev))
+            content = readelf_hexdump_to_bytearray(self.readsection(rev))
             cache.update(content)
             return content
 
@@ -38,9 +38,11 @@ class Section(api.Section):
             self.elf.objcopy('--dump-section', self.name + '=' + tmpf, rev)
 
             with open(tmpf, 'rb') as f:
-                content = f.read()
+                content = bytearray(f.read())
         except (FileNotFoundError, sh.ErrorReturnCode):
-            return readelf_hexdump_to_bytes(self.readsection(rev))
+            content = readelf_hexdump_to_bytearray(self.readsection(rev))
+            cache.update(content)
+            return content
 
         cache.update(content)
 

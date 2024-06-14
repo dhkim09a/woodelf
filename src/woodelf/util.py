@@ -68,8 +68,8 @@ def gnu_hash(string: str):
     # return gnu_hash_binutils_bfd_elf(string)
 
 
-def readelf_hexdump_to_bytes(hexdump: str) -> bytes:
-    b = bytes()
+def readelf_hexdump_to_bytearray(hexdump: str) -> bytearray:
+    b = bytearray()
     for line in [e for e in hexdump.splitlines()][2:]:
         if len(line) == 0:
             continue

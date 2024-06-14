@@ -37,7 +37,7 @@ class Elf(api.Elf):
         elif typ is EDITOR.PROGRAM_HEADER:
             editor = ProgramHeaderEditor(self)
         elif typ is EDITOR.SYMBOL:
-            editor = SymbolEditor(self)
+            editor = SymbolEditor(self, *args, **kwargs)
         else:
             raise TypeError
 
@@ -233,7 +233,8 @@ class Elf(api.Elf):
         elfh_editor.write_elf_header(elfh)
 
     def __auto_adjust_symbol_values(self):
-        st_editor: SymbolEditor = self.get_editor(EDITOR.SYMBOL)
+        # FIXME: 240614 dhkim: Shouldn't we handle SECTION.SYMTAB too?
+        st_editor: SymbolEditor = self.get_editor(EDITOR.SYMBOL, SECTION.DYNSYM)
         sh_editor: SectionHeaderEditor = self.get_editor(EDITOR.SECTION_HEADER)
 
         orig_st = st_editor.read_symbol_table(rev_idx=0)

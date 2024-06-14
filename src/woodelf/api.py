@@ -24,7 +24,7 @@ class ElfHeader:
 class Section:
     name: str
 
-    def read_content(self, rev_idx: int = -1) -> bytes:
+    def read_content(self, rev_idx: int = -1) -> bytearray:
         raise NotImplementedError
 
     def write_content(self, content: bytes):

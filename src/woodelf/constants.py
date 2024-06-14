@@ -159,6 +159,7 @@ class SECTION(Enum):
     GNU_DEBUGDATA = '.gnu_debugdata'
     SHSTRTAB = '.shstrtab'
     SYMTAB = '.symtab'
+    STRTAB = '.strtab'
 
     def __str__(self):
         return self.value

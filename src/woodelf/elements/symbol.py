@@ -18,7 +18,7 @@ class Symbol(Element, api.Symbol):
             raise AssertionError
 
     @classmethod
-    def from_bytes(cls, elf: Elf, b: bytes):
+    def from_bytes(cls, elf: Elf, b: bytes, strsec: SECTION = SECTION.STRTAB):
         if elf.unit == ELF32:
             st_name, st_value, st_size, st_info, \
             st_other, st_shndx = cls.deserialize(elf, b)
@@ -28,12 +28,12 @@ class Symbol(Element, api.Symbol):
         else:
             raise AssertionError
 
-        dynsym_editor: StrTabEditor = elf.get_editor(EDITOR.STRTAB, SECTION.DYNSTR)
+        strtab_editor: StrTabEditor = elf.get_editor(EDITOR.STRTAB, strsec)
         # dynent_editor: DynamicEntryEditor = elf.get_editor(EDITOR.DYNAMIC_ENTRY)
         # dyntab = dynent_editor.read_dynamic_entries()
 
         s = Symbol()
-        s.name = dynsym_editor.get_str(st_name)
+        s.name = strtab_editor.get_str(st_name)
         s.value = st_value
         s.siz = st_size
         s.bind = SYMBOL_BIND(cls.__st_bind(st_info))
@@ -43,12 +43,12 @@ class Symbol(Element, api.Symbol):
 
         return s
 
-    def to_bytes(self, elf: Elf) -> bytes:
-        dynsym_editor: StrTabEditor = elf.get_editor(EDITOR.STRTAB, SECTION.DYNSTR)
+    def to_bytes(self, elf: Elf, strsec: SECTION = SECTION.STRTAB) -> bytes:
+        strtab_editor: StrTabEditor = elf.get_editor(EDITOR.STRTAB, strsec)
         # dynent_editor: DynamicEntryEditor = elf.get_editor(EDITOR.DYNAMIC_ENTRY)
         # dyntab = dynent_editor.read_dynamic_entries()
 
-        st_name = dynsym_editor.find(self.name)
+        st_name = strtab_editor.find(self.name)
         # st_info = -1
         # for i, de in enumerate(dyntab):
         #     if de.tag == self.info.tag and de.un == self.info.un:
