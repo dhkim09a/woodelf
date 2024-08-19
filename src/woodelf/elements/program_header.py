@@ -14,7 +14,7 @@ class ProgramHeader(api.ProgramHeader, Element):
             return [elf.unit.Word, elf.unit.Word, elf.unit.Off, elf.unit.Addr,
                     elf.unit.Addr, elf.unit.Xword, elf.unit.Xword, elf.unit.Xword]
         else:
-            raise AssertionError
+            raise AssertionError(f'error: invalid elf unit: {elf.unit}')
 
     @classmethod
     def from_bytes(cls, elf: Elf, b: bytes):
@@ -27,7 +27,7 @@ class ProgramHeader(api.ProgramHeader, Element):
             p_paddr, p_filesz, p_memsz, p_align \
                 = cls.deserialize(elf, b)
         else:
-            raise AssertionError
+            raise AssertionError(f'error: invalid elf unit: {elf.unit}')
 
         ph = ProgramHeader()
         try:
@@ -52,7 +52,7 @@ class ProgramHeader(api.ProgramHeader, Element):
             return self.serialize(elf, int(self.type), self.flags, self.offset, self.vaddr,
                                   self.paddr, self.filesz, self.memsz, self.align)
         else:
-            raise AssertionError
+            raise AssertionError(f'error: invalid elf unit: {elf.unit}')
 
     def __str__(self):
         string = 'Program header (segment): '

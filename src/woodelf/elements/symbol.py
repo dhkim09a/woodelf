@@ -15,7 +15,7 @@ class Symbol(Element, api.Symbol):
             return [elf.unit.Word, elf.unit.uchar, elf.unit.uchar, elf.unit.Half,
                     elf.unit.Addr, elf.unit.Xword]
         else:
-            raise AssertionError
+            raise AssertionError(f'error: invalid elf unit: {elf.unit}')
 
     @classmethod
     def from_bytes(cls, elf: Elf, b: bytes, strsec: SECTION = SECTION.STRTAB):
@@ -26,7 +26,7 @@ class Symbol(Element, api.Symbol):
             st_name, st_info, st_other, st_shndx, \
             st_value, st_size = cls.deserialize(elf, b)
         else:
-            raise AssertionError
+            raise AssertionError(f'error: invalid elf unit: {elf.unit}')
 
         strtab_editor: StrTabEditor = elf.get_editor(EDITOR.STRTAB, strsec)
         # dynent_editor: DynamicEntryEditor = elf.get_editor(EDITOR.DYNAMIC_ENTRY)
@@ -65,7 +65,7 @@ class Symbol(Element, api.Symbol):
         elif elf.unit == ELF64:
             return self.serialize(elf, st_name, st_info, int(self.other), self.shndx,
                                   self.value, self.siz)
-        raise AssertionError
+        raise AssertionError(f'error: invalid elf unit: {elf.unit}')
 
     def is_defined(self):
         return self.siz != 0 and self.shndx != 0

@@ -40,7 +40,7 @@ class SectionHeaderEditor(Editor, api.SectionHeaderEditor):
 
         return sht
 
-    def read_section_header(self, section: SECTION, rev_idx: int = -1) -> SectionHeader:
+    def read_section_header(self, section: SECTION, rev_idx: int = -1) -> SectionHeader | None:
         for sh in self.read_section_header_table(rev_idx=rev_idx):
             if sh.name == str(section):
                 return sh

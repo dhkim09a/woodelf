@@ -18,6 +18,7 @@ class Section(api.Section):
         self.name = section.value
         self.tag = section
         self.readsection = elf.readelf.bake(x=self.name)
+        # self.readsection = elf.readelf.bake(x=1)
 
     def read_content(self, rev_idx: int = -1) -> bytearray:
         rev = self.elf.revisions[rev_idx]
@@ -28,6 +29,7 @@ class Section(api.Section):
 
         if self.name == str(SECTION.SHSTRTAB):
             # Unfortunately, objdump cannot dump .shstrtab
+            # print(f'readelf hexdump (with {self.readsection}): \n{self.readsection(rev)}')
             content = readelf_hexdump_to_bytearray(self.readsection(rev))
             cache.update(content)
             return content

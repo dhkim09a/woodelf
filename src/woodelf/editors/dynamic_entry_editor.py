@@ -49,11 +49,14 @@ class DynamicEntryEditor(Editor, api.DynamicEntryEditor):
         dyn_ents = self.read_dynamic_entries(rev_idx=rev_idx)
         soname_ents = [e for e in filter(lambda e: e.tag == DYNAMIC_ENTRY_TAG.DT_SONAME, dyn_ents)]
 
-        assert len(soname_ents) == 1
+        if not soname_ents:
+            return
+
+        assert len(soname_ents) == 1, f'DT_SONAME is defined multiple times'
 
         soname = soname_ents[0].un
 
-        assert isinstance(soname, str)
+        assert isinstance(soname, str), f'DT_SONAME is not a str: {soname}'
 
         return soname
 
