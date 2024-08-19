@@ -1,14 +1,14 @@
-from .. import api, Section
+from ..core.section import Section
 from ..core import Editor, Elf
 from ..constants import SECTION
 
 
-class StrTabEditor(Editor, api.StrTabEditor):
+class StrTabEditor(Editor):
     elf: Elf
     section_type: SECTION
     section: Section
 
-    def __init__(self, elf: Elf, section: SECTION, base_editor: api.Editor = None, _unsafe=False):
+    def __init__(self, elf: Elf, section: SECTION, base_editor: Editor | None = None, _unsafe=False):
         super().__init__(elf)
 
         self.elf = elf
@@ -35,5 +35,5 @@ class StrTabEditor(Editor, api.StrTabEditor):
 
     def __str__(self):
         string = '=======\nSection ' + self.section.name + '\n-------\n'
-        string += self.section.read_content()
+        string += str(self.section.read_content())
         return string

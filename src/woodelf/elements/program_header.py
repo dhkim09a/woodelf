@@ -1,12 +1,21 @@
-from typing import List, Union
 
-from .. import api, Elf, ELF32, ELF64, SEGMENT_TYPE
+from ..constants import ELF32, ELF64, SEGMENT_TYPE
 from ..core import Element
+from ..core.elf import Elf
 
 
-class ProgramHeader(api.ProgramHeader, Element):
+class ProgramHeader(Element):
+    type: SEGMENT_TYPE | int
+    offset: int
+    vaddr: int
+    paddr: int
+    filesz: int
+    memsz: int
+    flags: int
+    align: int
+
     @classmethod
-    def units(cls, elf: Elf) -> List[Union[ELF32, ELF64]]:
+    def units(cls, elf: Elf) -> list[ELF32 | ELF64]:
         if elf.unit == ELF32:
             return [elf.unit.Word, elf.unit.Off, elf.unit.Addr, elf.unit.Addr,
                     elf.unit.Word, elf.unit.Word, elf.unit.Word, elf.unit.Word]
@@ -18,14 +27,17 @@ class ProgramHeader(api.ProgramHeader, Element):
 
     @classmethod
     def from_bytes(cls, elf: Elf, b: bytes):
+        r = cls.deserialize(elf, b)
+        assert isinstance(r, tuple) and len(r) == 8
+
         if elf.unit == ELF32:
             p_type, p_offset, p_vaddr, p_paddr, \
             p_filesz, p_memsz, p_flags, p_align \
-                = cls.deserialize(elf, b)
+                = r
         elif elf.unit == ELF64:
             p_type, p_flags, p_offset, p_vaddr, \
             p_paddr, p_filesz, p_memsz, p_align \
-                = cls.deserialize(elf, b)
+                = r
         else:
             raise AssertionError(f'error: invalid elf unit: {elf.unit}')
 
@@ -68,7 +80,7 @@ class ProgramHeader(api.ProgramHeader, Element):
         return string
 
 
-class ProgramHeaderTable(api.ProgramHeaderTable):
+class ProgramHeaderTable(list[ProgramHeader]):
     def __str__(self):
         string = 'Program Header (Segment) Table: \n'
         for ph in self:

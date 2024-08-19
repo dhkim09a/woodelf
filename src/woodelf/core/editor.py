@@ -1,10 +1,11 @@
-from typing import List
+# from typing import List
 
-from .. import api, Elf
-from ..constants import SECTION
+# from .. import api
+# from ..constants import SECTION
+from .elf import Elf
 
 
-class Editor(api.Editor):
+class Editor:
     elf: Elf
 
     def __init__(self, elf: Elf):

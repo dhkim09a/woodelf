@@ -1,13 +1,18 @@
 from typing import Union
 
-from .. import api, Elf, StrTabEditor
-from ..constants import DYNAMIC_ENTRY_TAG, STR_DT, PTR_DT, ELF32, ELF64, EDITOR, SECTION
+
+from ..core.elf import Elf
+
+from ..constants import DYNAMIC_ENTRY_TAG, STR_DT, PTR_DT, ELF32, ELF64, SECTION
 
 from ..core.element import Element
 
 
-class DynamicEntry(api.DynamicEntry, Element):
-    def __init__(self, tag: Union[DYNAMIC_ENTRY_TAG, int], un: Union[str, int]):
+class DynamicEntry(Element):
+    tag: DYNAMIC_ENTRY_TAG
+    un: Union[int, str, None]
+
+    def __init__(self, tag: DYNAMIC_ENTRY_TAG, un: Union[str, int]):
         self.tag = tag
         self.un = un
 
@@ -22,6 +27,7 @@ class DynamicEntry(api.DynamicEntry, Element):
 
     @classmethod
     def from_bytes(cls, elf: Elf, b: bytes):
+        from ..editors.strtab_editor import StrTabEditor
         assert len(b) == DynamicEntry.size(elf)
 
         pos = 0
@@ -35,12 +41,10 @@ class DynamicEntry(api.DynamicEntry, Element):
         else:
             raise ValueError
 
-        try:
-            tag = DYNAMIC_ENTRY_TAG(d_tag)
-        except ValueError:
-            tag = d_tag
+        tag = DYNAMIC_ENTRY_TAG(d_tag)
 
-        dynstr_editor: StrTabEditor = elf.get_editor(EDITOR.STRTAB, SECTION.DYNSTR)
+        # dynstr_editor: StrTabEditor = elf.get_editor(EDITOR.STRTAB, SECTION.DYNSTR)
+        dynstr_editor = StrTabEditor(elf, SECTION.DYNSTR)
 
         if tag in STR_DT:
             un = dynstr_editor.get_str(d_un)
@@ -50,16 +54,20 @@ class DynamicEntry(api.DynamicEntry, Element):
         return DynamicEntry(tag, un)
 
     def __to_bytes(self, elf: Elf, tag_size: int, un_size: int) -> bytes:
+        from ..editors.strtab_editor import StrTabEditor
         b = int(self.tag).to_bytes(tag_size, byteorder=elf.endian, signed=True)
 
         if isinstance(self.un, str):
-            dynstr_editor: StrTabEditor = elf.get_editor(EDITOR.STRTAB, SECTION.DYNSTR)
+            # dynstr_editor: StrTabEditor = elf.get_editor(EDITOR.STRTAB, SECTION.DYNSTR)
+            dynstr_editor = StrTabEditor(elf, SECTION.DYNSTR)
             if (self.tag in STR_DT) and (off := dynstr_editor.find(self.un)) >= 0:
                 b += off.to_bytes(un_size, byteorder=elf.endian, signed=True)
             else:
                 raise ValueError
-        else:
+        elif isinstance(self.un, int):
             b += int(self.un).to_bytes(un_size, byteorder=elf.endian, signed=True)
+        else:
+            raise ValueError
 
         assert len(b) == DynamicEntry.size(elf)
 
@@ -74,14 +82,14 @@ class DynamicEntry(api.DynamicEntry, Element):
             raise ValueError
 
     def __str__(self):
-        if hasattr(self.tag, 'name'):
-            string = str(self.tag.name)
-        else:
-            string = hex(self.tag)
+        string = str(self.tag.name)
+
         if self.tag in PTR_DT:
+            assert isinstance(self.un, int)
             string += ', ptr: ' + hex(self.un)
         elif self.tag in STR_DT:
             string += ', val: ' + str(self.un)
         else:
+            assert isinstance(self.un, int)
             string += ', val: ' + hex(self.un)
         return string

@@ -1,4 +1,4 @@
-from typing import List
+from typing import Callable
 
 
 def transaction(func):
@@ -9,19 +9,19 @@ def transaction(func):
 
 class Transaction:
     class Command:
-        func: callable
+        func: Callable
         args: list
         kwargs: dict
 
-    cmdq: List[Command]
+    cmdq: list[Command]
 
     def __init__(self):
         self.cmdq = []
 
-    def enqueue_command(self, func: callable, *args, **kwargs):
+    def enqueue_command(self, func: Callable, *args, **kwargs):
         cmd = Transaction.Command()
         cmd.func = func
-        cmd.args = args
+        cmd.args = list(args)
         cmd.kwargs = kwargs
 
         self.cmdq.append(cmd)

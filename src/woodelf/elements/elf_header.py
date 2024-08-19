@@ -1,13 +1,32 @@
+from __future__ import annotations
+
 from typing import List, Union
 
+# from ..editors.elf_header_editor import ElfHeaderEditor
+
+from ..core.elf import Elf
+
 from .e_ident import E_Ident
-from ..constants import ELF_VERSION, ELF_MACHINE, ELF_TYPE, EDITOR, ELF32, ELF64
-from .. import Elf, api
+from ..constants import ELF_VERSION, ELF_MACHINE, ELF_TYPE, ELF32, ELF64
 from ..core import Element
 
 
-class ElfHeader(api.ElfHeader, Element):
+class ElfHeader(Element):
     ident: E_Ident
+    typ: Union[ELF_TYPE, int]
+    machine: Union[ELF_MACHINE, int]
+    version: Union[ELF_VERSION, int]
+    entry: int
+    phoff: int
+    shoff: int
+    flags: int
+    ehsize: int
+    phentsize: int
+    phnum: int
+    shentsize: int
+    shnum: int
+    shstrndx: int
+
 
     def __init__(self, ident, typ, machine, version, entry, phoff, shoff, flags, ehsize,
                  phentsize, phnum, shentsize, shnum, shstrndx):
@@ -38,16 +57,25 @@ class ElfHeader(api.ElfHeader, Element):
                 elf.unit.Half]
 
     @classmethod
-    def from_bytes(cls, elf: Elf, b: bytes):
+    def from_bytes(cls, elf: Elf, b: bytes) -> ElfHeader | None:
+        from ..editors.elf_header_editor import ElfHeaderEditor
+
         assert len(b) == cls.size(elf)
 
-        ident = elf.get_editor(EDITOR.ELF_HEADER).read_e_ident()
+        # ident = elf.get_editor(EDITOR.ELF_HEADER).read_e_ident()
+        elfh_editor = ElfHeaderEditor(elf)
+        ident = elfh_editor.read_e_ident()
+        if not ident:
+            return
         pos = ident.size()
+
+        r = cls.deserialize(elf, b[pos:])
+        assert isinstance(r, tuple) and len(r) == 13
 
         e_type, e_machine, e_version, e_entry,\
         e_phoff, e_shoff, e_flags, e_ehsize,\
         e_phentsize, e_phnum, e_shentsize, e_shnum,\
-        e_shstrndx = cls.deserialize(elf, b[pos:])
+        e_shstrndx = r
 
         typ = ELF_TYPE(e_type)
         machine = ELF_MACHINE(e_machine)

@@ -27,13 +27,16 @@ class ELF_DATA(IntEnum):
     # def _missing_(cls, value):
     #     return value
 
-    def __str__(self) -> Literal['little', 'big']:
+    def endian(self) -> Literal['little', 'big']:
         if self == ELF_DATA.DATA2LSB:
             return 'little'
         elif self == ELF_DATA.DATA2MSB:
             return 'big'
 
         assert False, f'Unknown ELF_DATA: {self}'
+
+    def __str__(self) -> str:
+        return self.endian()
 
 class ELF_TYPE(IntEnum):
     NONE = 0
@@ -281,14 +284,14 @@ class ELF64(IntEnum):
     uchar = 1
 
 
-class EDITOR(Enum):
-    SYMBOL_VERSION = auto()
-    DYNAMIC_ENTRY = auto()
-    STRTAB = auto()
-    ELF_HEADER = auto()
-    SECTION_HEADER = auto()
-    PROGRAM_HEADER = auto()
-    SYMBOL = auto()
+# class EDITOR(Enum):
+#     SYMBOL_VERSION = auto()
+#     DYNAMIC_ENTRY = auto()
+#     STRTAB = auto()
+#     ELF_HEADER = auto()
+#     SECTION_HEADER = auto()
+#     PROGRAM_HEADER = auto()
+#     SYMBOL = auto()
 
 
 class SEGMENT_TYPE(IntEnum):
@@ -410,11 +413,18 @@ class DYNAMIC_ENTRY_TAG(Enum):
     DT_VERNEED = 0x6ffffffe
     DT_VERNEEDNUM = 0x6fffffff
 
+    DT_UNKNOWN_1 = 1879048193
+    DT_UNKNOWN_2 = 36
+    DT_UNKNOWN_3 = 35
+    DT_UNKNOWN_4 = 37
+
     DT_UNKNOWN = None
 
-    def __int__(self):
+    def __int__(self) -> int:
         if self == DYNAMIC_ENTRY_TAG:
             return 0
+        
+        assert isinstance(self.value, int)
 
         return self.value
 

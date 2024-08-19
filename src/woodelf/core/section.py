@@ -1,17 +1,17 @@
 import shutil
 import tempfile
-from typing import List, Union
+from typing import Callable, List, Union
 
 import sh
 
-from .. import api, Elf, SectionHeaderEditor
-from ..constants import SECTION, EDITOR
+# from ..editors import SectionHeaderEditor
+from ..constants import SECTION
 from ..util import readelf_hexdump_to_bytearray
+from .elf import Elf
 
-
-class Section(api.Section):
+class Section:
     elf: Elf
-    readsection: callable
+    readsection: Callable
 
     def __init__(self, elf: Elf, section: SECTION):
         self.elf = elf
@@ -51,14 +51,18 @@ class Section(api.Section):
         return content
 
     def write_content(self, content: bytes):
+        from ..editors import SectionHeaderEditor
+
         current_rev = self.elf.get_current_revision()
         next_rev = tempfile.mktemp(dir=self.elf.workdir.name)
 
-        if len(content) == len(self.read_content()):
-            she: SectionHeaderEditor = self.elf.get_editor(EDITOR.SECTION_HEADER)
+        if (len(content) == len(self.read_content())
+            and (she := SectionHeaderEditor(self.elf))
+            and (sh := she.read_section_header(self.tag))):
+            # she: SectionHeaderEditor = self.elf.get_editor(EDITOR.SECTION_HEADER)
             shutil.copy2(current_rev, next_rev)
             with open(next_rev, 'r+b') as f:
-                f.seek(she.read_section_header(self.tag).offset)
+                f.seek(sh.offset)
                 f.write(content)
         else:
             tmpf = tempfile.mktemp(suffix=self.name, dir=self.elf.workdir.name)

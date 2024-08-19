@@ -1,16 +1,19 @@
+from __future__ import annotations
+
 from typing import Union, List
 
-from .. import ELF64, ELF32
-from ..api import Elf
+from ..constants import ELF64, ELF32
+# from ..api import Elf
+from .elf import Elf
 
 
 class Element:
     @classmethod
-    def units(cls, elf: Elf) -> List[Union[ELF32, ELF64]]:
+    def units(cls, elf: Elf) -> list[ELF32 | ELF64]:
         raise NotImplementedError
 
     @classmethod
-    def from_bytes(cls, elf: Elf, b: bytes):
+    def from_bytes(cls, elf: Elf, b: bytes) -> Element | None:
         raise NotImplementedError
 
     def to_bytes(self, elf: Elf) -> bytes:
@@ -28,8 +31,8 @@ class Element:
         return cls.__size(elf)
 
     @classmethod
-    def deserialize(cls, elf: Elf, b: bytes):
-        results = []
+    def deserialize(cls, elf: Elf, b: bytes) -> int | tuple[int, ...]:
+        results: list[int] = []
         pos = 0
 
         # if len(b) != cls.__size(elf):

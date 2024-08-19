@@ -3,9 +3,9 @@ from ..core import Editor
 from ..elements import E_Ident, ElfHeader
 
 
-class ElfHeaderEditor(api.ElfHeaderEditor, Editor):
+class ElfHeaderEditor(Editor):
 
-    def read_e_ident(self) -> E_Ident:
+    def read_e_ident(self) -> E_Ident | None:
         rev = self.elf.get_current_revision()
         cache = self.elf.get_cache(rev, 'e_ident')
 
@@ -19,7 +19,7 @@ class ElfHeaderEditor(api.ElfHeaderEditor, Editor):
         cache.update(e_ident)
         return e_ident
 
-    def read_elf_header(self, rev_idx: int = -1) -> ElfHeader:
+    def read_elf_header(self, rev_idx: int = -1) -> ElfHeader | None:
         rev = self.elf.revisions[rev_idx]
         cache = self.elf.get_cache(rev, 'elfh')
 
@@ -33,7 +33,7 @@ class ElfHeaderEditor(api.ElfHeaderEditor, Editor):
         cache.update(elfh)
         return elfh
 
-    def write_elf_header(self, elf_header: ElfHeader):
+    def write_elf_header(self, elf_header: ElfHeader) -> bool:
         rev = self.elf.get_current_revision()
 
         with open(rev, 'r+b') as f:
@@ -41,4 +41,6 @@ class ElfHeaderEditor(api.ElfHeaderEditor, Editor):
 
         self.elf.get_cache(rev, 'e_ident').invalidate()
         self.elf.get_cache(rev, 'elfh').invalidate()
+
+        return True
 

@@ -1,16 +1,21 @@
 from hexdump import hexdump
 from os import path as _p
 
-from . import ElfHeaderEditor
-from .. import api, SECTION, EDITOR
+from .elf_header_editor import ElfHeaderEditor
+from ..constants import SECTION
 from ..core import Editor
 from ..elements.section_header import SectionHeader, SectionHeaderTable
 
 
-class SectionHeaderEditor(Editor, api.SectionHeaderEditor):
-    def read_section_header_table(self, rev_idx: int = -1) -> SectionHeaderTable:
-        elfhdr_editor: ElfHeaderEditor = self.elf.get_editor(EDITOR.ELF_HEADER)
+class SectionHeaderEditor(Editor):
+    def read_section_header_table(self, rev_idx: int = -1) -> SectionHeaderTable | None:
+        # elfhdr_editor: ElfHeaderEditor = self.elf.get_editor(EDITOR.ELF_HEADER)
+        elfhdr_editor = ElfHeaderEditor(self.elf)
         elfhdr = elfhdr_editor.read_elf_header(rev_idx=rev_idx)
+
+        if not elfhdr:
+            return
+
         rev = self.elf.revisions[rev_idx]
         cache = self.elf.get_cache(rev, 'sht')
 
@@ -41,13 +46,20 @@ class SectionHeaderEditor(Editor, api.SectionHeaderEditor):
         return sht
 
     def read_section_header(self, section: SECTION, rev_idx: int = -1) -> SectionHeader | None:
-        for sh in self.read_section_header_table(rev_idx=rev_idx):
+        if not (sht := self.read_section_header_table(rev_idx=rev_idx)):
+            return
+
+        for sh in sht:
             if sh.name == str(section):
                 return sh
 
-    def __get_section_header_offset_by_name(self, section: SECTION):
-        elfhdr_editor: ElfHeaderEditor = self.elf.get_editor(EDITOR.ELF_HEADER)
+    def __get_section_header_offset_by_name(self, section: SECTION) -> int:
+        # elfhdr_editor: ElfHeaderEditor = self.elf.get_editor(EDITOR.ELF_HEADER)
+        elfhdr_editor = ElfHeaderEditor(self.elf)
         elfhdr = elfhdr_editor.read_elf_header()
+
+        if not elfhdr:
+            return -1
 
         with open(self.elf.get_current_revision(), 'rb') as f:
             f.seek(elfhdr.shoff)
@@ -64,9 +76,14 @@ class SectionHeaderEditor(Editor, api.SectionHeaderEditor):
 
         return offset
 
-    def write_section_header_table(self, sht: SectionHeaderTable):
-        elfhdr_editor: ElfHeaderEditor = self.elf.get_editor(EDITOR.ELF_HEADER)
+    def write_section_header_table(self, sht: SectionHeaderTable) -> bool:
+        # elfhdr_editor: ElfHeaderEditor = self.elf.get_editor(EDITOR.ELF_HEADER)
+        elfhdr_editor = ElfHeaderEditor(self.elf)
         elfhdr = elfhdr_editor.read_elf_header()
+
+        if not elfhdr:
+            return False
+
         rev = self.elf.get_current_revision()
         cache = self.elf.get_cache(rev, 'sht')
 
@@ -80,6 +97,8 @@ class SectionHeaderEditor(Editor, api.SectionHeaderEditor):
         elfhdr_editor.write_elf_header(elfhdr)
 
         cache.invalidate()
+
+        return True
 
     def write_section_header(self, section: SECTION, sh: SectionHeader):
         offset = self.__get_section_header_offset_by_name(section)

@@ -1,109 +1,23 @@
-from typing import Union, List
+from __future__ import annotations
 
-from .. import EDITOR, SECTION, api, ELF64, ELF32, gnu_hash
-from ..api import Elf, SymbolVersionEditor, StrTabEditor
+from typing import Generic, TypeVar, Union, List, Protocol
+
+# from ..editors.symbol_version_editor import SymbolVersionEditor
+
+from ..core.elf import Elf
+
+from ..constants import SECTION, ELF64, ELF32
+from ..util import gnu_hash
+# from ..api import Elf, SymbolVersionEditor, StrTabEditor
 
 from ..core.element import Element
 
 
 class Veraux(Element):
-    next: object
+    next: Veraux | None
 
     def __init__(self):
         self.next = None
-
-
-class VerauxTable:
-    head: Union[Veraux, None]
-    size: int
-
-    class __Iterator:
-        next: Union[Veraux, None]
-
-        def __init__(self, head: Union[Veraux, None]):
-            self.next = head
-
-        def __next__(self) -> Veraux:
-            if self.next:
-                cur = self.next
-                if self.next.next:
-                    assert isinstance(self.next.next, Veraux)
-                    self.next = self.next.next
-                else:
-                    self.next = None
-                return cur
-            else:
-                raise StopIteration
-
-    def __init__(self):
-        self.head = None
-        self.size = 0
-
-    def __iter__(self):
-        return VerauxTable.__Iterator(self.head)
-
-    def __len__(self):
-        return self.size
-
-    def __getitem__(self, key: int):
-        if not isinstance(key, int):
-            raise TypeError('list indices must be integers')
-
-        if not (v := self.head) or not (0 <= key <= len(self)):
-            raise IndexError('list index out of range')
-
-        if key == 0:
-            return self.head
-        else:
-            while (next_v := v.next) and (key := key - 1):
-                v = next_v
-            if not next_v:
-                raise IndexError('list index out of range')
-            return next_v
-
-    def __setitem__(self, key: int, value: Veraux):
-        if not isinstance(key, int):
-            raise TypeError('list indices must be integers')
-
-        self.insert(key, value)
-
-    def append(self, version: Veraux):
-        self.size += 1
-
-        if not (v := self.head):
-            self.head = version
-            return
-
-        while next_v := v.next:
-            v = next_v
-
-        v.next = version
-
-    def insert(self, index: int, version: Veraux):
-        if not isinstance(version, Veraux):
-            raise ValueError
-
-        self.size += 1
-
-        if not (v := self.head):
-            self.head = version
-            return
-
-        if index > 0 and index % len(self) == 0:
-            index = len(self)
-        else:
-            index = index % len(self)
-
-        assert 0 <= index <= len(self)
-
-        if index == 0:
-            version.next = self.head
-            self.head = version
-        else:
-            while (next_v := v.next) and (index := index - 1):
-                v = next_v
-            v.next = version
-            version.next = next_v
 
 
 class Ver(Veraux):
@@ -137,47 +51,7 @@ class Ver(Veraux):
             self.cnt = len(self.veraux_table)
 
 
-class Version(api.Version, Element):
-    @classmethod
-    def units(cls, elf: Elf) -> List[Union[ELF32, ELF64]]:
-        # This must be the same with vna_other
-        return [elf.unit.Half]
-
-    @classmethod
-    def from_bytes(cls, elf: Elf, b: bytes):
-        symver_editor: SymbolVersionEditor = elf.get_editor(EDITOR.SYMBOL_VERSION)
-        ver = Version()
-        vna_other = cls.deserialize(elf, b)
-        if vna_other != 0:
-            name, soname = symver_editor.get_vername_soname_by_version(vna_other)
-            ver.name = name
-            ver.soname = soname
-        else:
-            ver.name = ver.soname = None
-
-        return ver
-
-    def to_bytes(self, elf: Elf) -> bytes:
-        symver_editor: SymbolVersionEditor = elf.get_editor(EDITOR.SYMBOL_VERSION)
-        if self.name:
-            value = symver_editor.get_version_by_name(self.name, self.soname)
-        else:
-            value = 0
-        return self.serialize(elf, value)
-
-    def is_local(self):
-        return not self.name
-
-    def __str__(self):
-        if self.is_local():
-            return 'LOCAL'
-        string = self.name
-        if self.soname:
-            string += ' (from ' + self.soname + ')'
-        return string
-
-
-class Verdaux(Veraux, api.Verdaux):
+class Verdaux(Veraux):
     name: str
     next: Union[Veraux, None]
 
@@ -190,7 +64,8 @@ class Verdaux(Veraux, api.Verdaux):
         return int(elf.unit.Word) * 2
 
     @classmethod
-    def from_bytes(cls, elf: Elf, b: bytes):
+    def from_bytes(cls, elf: Elf, b: bytes) -> Verdaux | None:
+        from ..editors.strtab_editor import StrTabEditor
         assert len(b) == Verdaux.size(elf)
 
         pos = 0
@@ -200,15 +75,22 @@ class Verdaux(Veraux, api.Verdaux):
         if vda_next != 0 and vda_next != Verdaux.size(elf):
             print('error: weird vn_aux offset')
 
-        name = elf.get_editor(EDITOR.STRTAB, SECTION.DYNSTR).get_str(vda_name)
+        if not (dynstr_editor := StrTabEditor(elf, SECTION.DYNSTR)):
+            return None
+
+        name = dynstr_editor.get_str(vda_name)
 
         verdaux = Verdaux(name)
 
         return verdaux
 
-    def to_bytes(self, elf: Elf):
+    def to_bytes(self, elf: Elf) -> bytes | None:
+        from ..editors.strtab_editor import StrTabEditor
+        if not (dynstr_editor := StrTabEditor(elf, SECTION.DYNSTR)):
+            return None
+
         # dynstr_sec: lief.ELF.Section = elf.get_section('.dynstr')
-        if (pos := elf.get_editor(EDITOR.STRTAB, SECTION.DYNSTR).find(self.name)) >= 0:
+        if (pos := dynstr_editor.find(self.name)) >= 0:
             b = pos.to_bytes(int(elf.unit.Word), byteorder=elf.endian, signed=False)
         else:
             b = (0).to_bytes(int(elf.unit.Word), byteorder=elf.endian, signed=False)
@@ -226,7 +108,7 @@ class Verdaux(Veraux, api.Verdaux):
                + ' (gnu hash: ' + hex(gnu_hash(self.name)) + ')'
 
 
-class Verdef(Ver, api.Verdef):
+class Verdef(Ver):
     version: int
     flags: int
     ndx: int
@@ -235,7 +117,7 @@ class Verdef(Ver, api.Verdef):
     aux: Union[Verdaux, None]
     next: Union[Veraux, None]
 
-    def __init__(self, vda_name: str = None, vd_ndx: int = 1):
+    def __init__(self, vda_name: str | None = None, vd_ndx: int = 1):
         super().__init__()
 
         self.version = 1
@@ -257,9 +139,11 @@ class Verdef(Ver, api.Verdef):
 
     @classmethod
     def from_bytes(cls, elf: Elf, b: bytes):
+        r = cls.deserialize(elf, b)
 
-        vd_version, vd_flags, vd_ndx, vd_cnt, vd_hash, vd_aux, vd_next \
-            = cls.deserialize(elf, b)
+        assert isinstance(r, tuple) and len(r) == 7
+
+        vd_version, vd_flags, vd_ndx, vd_cnt, vd_hash, vd_aux, vd_next = r
 
         if vd_version != 1:
             print('error: vd_version must be 1')
@@ -304,7 +188,7 @@ class Verdef(Ver, api.Verdef):
         return self.ndx
 
 
-class Vernaux(Veraux, api.Vernaux):
+class Vernaux(Veraux):
     hash: int
     flags: int
     next: Union[Veraux, None]
@@ -326,14 +210,21 @@ class Vernaux(Veraux, api.Vernaux):
                 elf.unit.Word]
 
     @classmethod
-    def from_bytes(cls, elf: Elf, b: bytes):
-        vna_hash, vna_flags, vna_other, vna_name, \
-        vna_next = cls.deserialize(elf, b)
+    def from_bytes(cls, elf: Elf, b: bytes) -> Vernaux | None:
+        from ..editors.strtab_editor import StrTabEditor
+        r = cls.deserialize(elf, b)
+
+        assert isinstance(r, tuple) and len(r) == 5
+
+        vna_hash, vna_flags, vna_other, vna_name, vna_next = r
 
         if vna_next != 0 and vna_next != Vernaux.size(elf):
             print('error: weird vn_aux offset')
 
-        name = elf.get_editor(EDITOR.STRTAB, SECTION.DYNSTR).get_str(vna_name)
+        if not (dynstr_editor := StrTabEditor(elf, SECTION.DYNSTR)):
+            return None
+
+        name = dynstr_editor.get_str(vna_name)
 
         vernaux = Vernaux(name)
 
@@ -343,16 +234,19 @@ class Vernaux(Veraux, api.Vernaux):
 
         return vernaux
 
-    def __str__(self):
+    def __str__(self) -> str:
         return '(vernaux) hash: ' + hex(self.hash) \
                + ', flags: ' + str(self.flags) \
                + ', other: ' + str(self.other) \
                + ', name: ' + str(self.name) \
                + ' (gnu hash: ' + hex(gnu_hash(self.name)) + ')'
 
-    def to_bytes(self, elf: Elf):
-        dynstr_edit: StrTabEditor = elf.get_editor(EDITOR.STRTAB, SECTION.DYNSTR)
-        symver_edit: SymbolVersionEditor = elf.get_editor(EDITOR.SYMBOL_VERSION)
+    def to_bytes(self, elf: Elf) -> bytes | None:
+        from ..editors.strtab_editor import StrTabEditor
+        # dynstr_edit: StrTabEditor = elf.get_editor(EDITOR.STRTAB, SECTION.DYNSTR)
+        if not (dynstr_edit := StrTabEditor(elf, SECTION.DYNSTR)):
+            return None
+        # symver_edit: SymbolVersionEditor = elf.get_editor(EDITOR.SYMBOL_VERSION)
 
         if (vna_name := dynstr_edit.find(self.name)) < 0:
             vna_name = 0
@@ -365,7 +259,7 @@ class Vernaux(Veraux, api.Vernaux):
         return self.serialize(elf, self.hash, self.flags, self.other, vna_name, vna_next)
 
 
-class Verneed(Ver, api.Verneed):
+class Verneed(Ver):
     version: int
     cnt: int
     file: str
@@ -377,7 +271,8 @@ class Verneed(Ver, api.Verneed):
         return int(elf.unit.Half) * 2 + int(elf.unit.Word) * 3
 
     @classmethod
-    def from_bytes(cls, elf: Elf, b: bytes):
+    def from_bytes(cls, elf: Elf, b: bytes) -> Verneed | None:
+        from ..editors.strtab_editor import StrTabEditor
         assert len(b) == Verneed.size(elf)
 
         pos = 0
@@ -393,7 +288,10 @@ class Verneed(Ver, api.Verneed):
         if vn_aux != 0 and vn_aux != Verneed.size(elf):
             print('error: weird vn_aux offset')
 
-        file = elf.get_editor(EDITOR.STRTAB, SECTION.DYNSTR).get_str(vn_file)
+        if not (dynstr_editor := StrTabEditor(elf, SECTION.DYNSTR)):
+            return None
+
+        file = dynstr_editor.get_str(vn_file)
 
         verneed = Verneed(file)
 
@@ -420,11 +318,15 @@ class Verneed(Ver, api.Verneed):
                + ', cnt: ' + str(self.cnt) \
                + ', file: ' + str(self.file)
 
-    def to_bytes(self, elf: Elf):
+    def to_bytes(self, elf: Elf) -> bytes | None:
+        from ..editors.strtab_editor import StrTabEditor
+        if not (dynstr_editor := StrTabEditor(elf, SECTION.DYNSTR)):
+            return None
+
         b = self.version.to_bytes(int(elf.unit.Half), byteorder=elf.endian, signed=False)
         b += self.cnt.to_bytes(int(elf.unit.Half), byteorder=elf.endian, signed=False)
         # dynstr_sec: lief.ELF.Section = elf.get_section('.dynstr')
-        if (pos := elf.get_editor(EDITOR.STRTAB, SECTION.DYNSTR).find(self.file)) >= 0:
+        if (pos := dynstr_editor.find(self.file)) >= 0:
             b += pos.to_bytes(int(elf.unit.Word), byteorder=elf.endian, signed=False)
         else:
             b += (0).to_bytes(int(elf.unit.Word), byteorder=elf.endian, signed=False)
@@ -443,11 +345,158 @@ class Verneed(Ver, api.Verneed):
         return b
 
 
-class VersionTable(api.VersionTable):
+V = TypeVar('V', Veraux, Ver, Verdaux, Verdef, Vernaux, Verneed)
+N = TypeVar('N', Veraux, Ver, Verdaux, Verdef, Vernaux, Verneed)
+
+
+class VerauxTable(Generic[V]):
+    head: V | None
+    size: int
+
+    class __Iterator(Generic[N]):
+        next: N | None
+
+        def __init__(self, head: Union[N, None]):
+            self.next = head
+
+        def __next__(self) -> N:
+            if self.next:
+                cur = self.next
+                if self.next.next:
+                    assert isinstance(self.next.next, Veraux)
+                    self.next = self.next.next
+                else:
+                    self.next = None
+                return cur
+            else:
+                raise StopIteration
+
+    def __init__(self):
+        self.head = None
+        self.size = 0
+
+    def __iter__(self):
+        return VerauxTable.__Iterator[V](self.head)
+
+    def __len__(self):
+        return self.size
+
+    def __getitem__(self, key: int):
+        if not isinstance(key, int):
+            raise TypeError('list indices must be integers')
+
+        if not (v := self.head) or not (0 <= key <= len(self)):
+            raise IndexError('list index out of range')
+
+        if key == 0:
+            return self.head
+        else:
+            while (next_v := v.next) and (key := key - 1):
+                v = next_v
+            if not next_v:
+                raise IndexError('list index out of range')
+            return next_v
+
+    def __setitem__(self, key: int, value: V):
+        if not isinstance(key, int):
+            raise TypeError('list indices must be integers')
+
+        self.insert(key, value)
+
+    def append(self, version: V):
+        self.size += 1
+
+        if not (v := self.head):
+            self.head = version
+            return
+
+        while next_v := v.next:
+            v = next_v
+
+        v.next = version
+
+    def insert(self, index: int, version: V):
+        if not isinstance(version, Veraux):
+            raise ValueError
+
+        self.size += 1
+
+        if not (v := self.head):
+            self.head = version
+            return
+
+        if index > 0 and index % len(self) == 0:
+            index = len(self)
+        else:
+            index = index % len(self)
+
+        assert 0 <= index <= len(self)
+
+        if index == 0:
+            version.next = self.head
+            self.head = version
+        else:
+            while (next_v := v.next) and (index := index - 1):
+                v = next_v
+            v.next = version
+            version.next = next_v
+
+
+class Version(Element):
+    soname: str | None
+    name: str | None
+
+    @classmethod
+    def units(cls, elf: Elf) -> List[Union[ELF32, ELF64]]:
+        # This must be the same with vna_other
+        return [elf.unit.Half]
+
+    @classmethod
+    def from_bytes(cls, elf: Elf, b: bytes):
+        from ..editors.symbol_version_editor import SymbolVersionEditor
+
+        # symver_editor: SymbolVersionEditor = elf.get_editor(EDITOR.SYMBOL_VERSION)
+        symver_editor = SymbolVersionEditor(elf)
+        ver = Version()
+        vna_other = cls.deserialize(elf, b)
+        assert isinstance(vna_other, int)
+        if vna_other != 0:
+            name, soname = symver_editor.get_vername_soname_by_version(vna_other)
+            ver.name = name
+            ver.soname = soname
+        else:
+            ver.name = ver.soname = None
+
+        return ver
+
+    def to_bytes(self, elf: Elf) -> bytes:
+        from ..editors.symbol_version_editor import SymbolVersionEditor
+        # symver_editor: SymbolVersionEditor = elf.get_editor(EDITOR.SYMBOL_VERSION)
+        symver_editor = SymbolVersionEditor(elf)
+        if self.name:
+            value = symver_editor.get_version_by_name(self.name, self.soname)
+        else:
+            value = 0
+        return self.serialize(elf, value)
+
+    def is_local(self):
+        return not self.name
+
+    def __str__(self):
+        if self.is_local():
+            return 'LOCAL'
+        string = self.name or ''
+        if self.soname:
+            string += ' (from ' + self.soname + ')'
+        return string
+
+
+
+class VersionTable(list[Version]):
     pass
 
 
-class VerdefTable(VerauxTable, api.VerdefTable):
+class VerdefTable(VerauxTable[Verdef]):
     head: Union[Verdef, None]
     next: Union[Verdef, None]
 
@@ -464,7 +513,7 @@ class VerdefTable(VerauxTable, api.VerdefTable):
         return verdef
 
 
-class VerneedTable(VerauxTable, api.VerneedTable):
+class VerneedTable(VerauxTable[Verneed]):
     head: Union[Verneed, None]
     next: Union[Verneed, None]
 

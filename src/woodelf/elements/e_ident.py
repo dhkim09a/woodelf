@@ -1,12 +1,14 @@
+from __future__ import annotations
+
 from typing import Union
 
-from woodelf import ELF_CLASS, ELF_DATA, ELF_VERSION, NotAnElfError
+from ..constants import ELF_CLASS, ELF_DATA, ELF_VERSION
 
 
 class E_Ident:
     magic: bytes
     cls: Union[ELF_CLASS, int]
-    data: Union[ELF_DATA, int]
+    data: ELF_DATA
     version: Union[ELF_VERSION, int]
     padding: bytes
 
@@ -18,13 +20,14 @@ class E_Ident:
         self.padding = padding
 
     @classmethod
-    def size(cls):
+    def size(cls) -> int:
         return 16
 
     @classmethod
-    def from_bytes(cls, b: bytes):
+    def from_bytes(cls, b: bytes) -> E_Ident | None:
         if len(b) < cls.size():
-            raise NotAnElfError('file is too small')
+            # raise NotAnElfError('file is too small')
+            return
 
         assert len(b) == cls.size()
 
@@ -35,7 +38,8 @@ class E_Ident:
         ei_pad = b[7:]
 
         if ei_magic != '\x7fELF'.encode('ascii'):
-            raise NotAnElfError('magic field does not match')
+            # raise NotAnElfError('magic field does not match')
+            return
 
         return E_Ident(ei_magic,
                        ELF_CLASS(int(ei_cls)),

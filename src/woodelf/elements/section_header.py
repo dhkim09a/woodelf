@@ -1,20 +1,37 @@
-from .. import api, Elf, List, Union, ELF32, ELF64, EDITOR, SECTION, StrTabEditor
+from ..core.elf import Elf
+# from ..editors.strtab_editor import StrTabEditor
+from ..constants import ELF32, ELF64, SECTION
 from ..core import Element
 
 
-class SectionHeader(Element, api.SectionHeader):
+class SectionHeader(Element):
+    name: str
+    type: int
+    flags: int
+    addr: int
+    offset: int
+    siz: int
+    link: int
+    info: int
+    addralign: int
+    entsize: int
+
     @classmethod
-    def units(cls, elf: Elf) -> List[Union[ELF32, ELF64]]:
+    def units(cls, elf: Elf) -> list[ELF32 | ELF64]:
         return [elf.unit.Word, elf.unit.Word, elf.unit.Xword, elf.unit.Addr,
                 elf.unit.Off, elf.unit.Xword, elf.unit.Word, elf.unit.Word,
                 elf.unit.Xword, elf.unit.Xword]
 
     @classmethod
     def from_bytes(cls, elf: Elf, b: bytes):
+        from ..editors.strtab_editor import StrTabEditor
+        r = cls.deserialize(elf, b)
+        assert isinstance(r, tuple) and len(r) == 10
         sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, sh_link, sh_info, sh_addralign, sh_entsize \
-            = cls.deserialize(elf, b)
+            = r
 
-        shstrtab: StrTabEditor = elf.get_editor(EDITOR.STRTAB, SECTION.SHSTRTAB, _unsafe=True)
+        # shstrtab: StrTabEditor = elf.get_editor(EDITOR.STRTAB, SECTION.SHSTRTAB, _unsafe=True)
+        shstrtab = StrTabEditor(elf, SECTION.SHSTRTAB, _unsafe=True)
 
         sh = SectionHeader()
         sh.name = shstrtab.get_str(sh_name)
@@ -31,7 +48,9 @@ class SectionHeader(Element, api.SectionHeader):
         return sh
 
     def to_bytes(self, elf: Elf):
-        shstrtab: StrTabEditor = elf.get_editor(EDITOR.STRTAB, SECTION.SHSTRTAB)
+        from ..editors.strtab_editor import StrTabEditor
+        # shstrtab: StrTabEditor = elf.get_editor(EDITOR.STRTAB, SECTION.SHSTRTAB)
+        shstrtab = StrTabEditor(elf, SECTION.SHSTRTAB)
         return self.serialize(elf, shstrtab.find(self.name), self.type, self.flags, self.addr,
                               self.offset, self.siz, self.link, self.info,
                               self.addralign, self.entsize)
@@ -51,7 +70,7 @@ class SectionHeader(Element, api.SectionHeader):
         return string
 
 
-class SectionHeaderTable(api.SectionHeaderTable):
+class SectionHeaderTable(list[SectionHeader]):
     def __str__(self):
         string = '=== Section Header Table ===\n'
         for sh in self:

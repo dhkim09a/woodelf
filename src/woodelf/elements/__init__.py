@@ -4,3 +4,4 @@ from .elf_header import ElfHeader
 from .symbol_version import Verdef, Verdaux, Verneed, Vernaux, Version, \
     VerauxTable, VerdefTable, VerneedTable, VersionTable
 from .symbol import SymbolTable, Symbol
+from .section_header import SectionHeaderTable, SectionHeader

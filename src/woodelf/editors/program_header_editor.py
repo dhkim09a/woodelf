@@ -1,13 +1,15 @@
 from . import ElfHeaderEditor
-from .. import api, EDITOR
 from ..core import Editor
 from ..elements.program_header import ProgramHeader, ProgramHeaderTable
 
 
-class ProgramHeaderEditor(Editor, api.ProgramHeaderEditor):
-    def read_program_header_table(self, rev_idx: int = -1) -> ProgramHeaderTable:
-        elfhdr_editor: ElfHeaderEditor = self.elf.get_editor(EDITOR.ELF_HEADER)
+class ProgramHeaderEditor(Editor):
+    def read_program_header_table(self, rev_idx: int = -1) -> ProgramHeaderTable | None:
+        # elfhdr_editor: ElfHeaderEditor = self.elf.get_editor(EDITOR.ELF_HEADER)
+        elfhdr_editor = ElfHeaderEditor(self.elf)
         elfhdr = elfhdr_editor.read_elf_header(rev_idx=rev_idx)
+        if not elfhdr:
+            return
         rev = self.elf.revisions[rev_idx]
         cache = self.elf.get_cache(rev, 'pht')
 
@@ -31,9 +33,12 @@ class ProgramHeaderEditor(Editor, api.ProgramHeaderEditor):
 
         return pht
 
-    def write_program_header_table(self, pht: ProgramHeaderTable):
-        elfhdr_editor: ElfHeaderEditor = self.elf.get_editor(EDITOR.ELF_HEADER)
+    def write_program_header_table(self, pht: ProgramHeaderTable) -> bool:
+        # elfhdr_editor: ElfHeaderEditor = self.elf.get_editor(EDITOR.ELF_HEADER)
+        elfhdr_editor = ElfHeaderEditor(self.elf)
         elfhdr = elfhdr_editor.read_elf_header()
+        if not elfhdr:
+            return False
         rev = self.elf.get_current_revision()
         cache = self.elf.get_cache(rev, 'pht')
 
@@ -47,3 +52,5 @@ class ProgramHeaderEditor(Editor, api.ProgramHeaderEditor):
         elfhdr_editor.write_elf_header(elfhdr)
 
         cache.invalidate()
+
+        return True

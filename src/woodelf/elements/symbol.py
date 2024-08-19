@@ -1,11 +1,25 @@
 from typing import List, Union
 
-from .. import Elf, ELF32, ELF64, EDITOR, SECTION, StrTabEditor, api, DynamicEntryEditor, SYMBOL_BIND, SYMBOL_TYPE, \
+# from ..editors.strtab_editor import StrTabEditor
+
+from ..core.elf import Elf
+
+from ..constants import ELF32, ELF64, SECTION, SYMBOL_BIND, SYMBOL_TYPE, \
     SYMBOL_VISIBILITY
 from ..core import Element
 
 
-class Symbol(Element, api.Symbol):
+class Symbol(Element):
+    name: str
+    value: int
+    siz: int
+    bind: SYMBOL_BIND
+    typ: SYMBOL_TYPE
+    other: SYMBOL_VISIBILITY
+    shndx: int
+
+    tag: SECTION
+
     @classmethod
     def units(cls, elf: Elf) -> List[Union[ELF32, ELF64]]:
         if elf.unit == ELF32:
@@ -19,16 +33,20 @@ class Symbol(Element, api.Symbol):
 
     @classmethod
     def from_bytes(cls, elf: Elf, b: bytes, strsec: SECTION = SECTION.STRTAB):
+        from ..editors.strtab_editor import StrTabEditor
+        r = cls.deserialize(elf, b)
+        assert isinstance(r, tuple) and len(r) == 6
         if elf.unit == ELF32:
             st_name, st_value, st_size, st_info, \
-            st_other, st_shndx = cls.deserialize(elf, b)
+            st_other, st_shndx = r
         elif elf.unit == ELF64:
             st_name, st_info, st_other, st_shndx, \
-            st_value, st_size = cls.deserialize(elf, b)
+            st_value, st_size = r
         else:
             raise AssertionError(f'error: invalid elf unit: {elf.unit}')
 
-        strtab_editor: StrTabEditor = elf.get_editor(EDITOR.STRTAB, strsec)
+        # strtab_editor: StrTabEditor = elf.get_editor(EDITOR.STRTAB, strsec)
+        strtab_editor = StrTabEditor(elf, strsec)
         # dynent_editor: DynamicEntryEditor = elf.get_editor(EDITOR.DYNAMIC_ENTRY)
         # dyntab = dynent_editor.read_dynamic_entries()
 
@@ -44,7 +62,9 @@ class Symbol(Element, api.Symbol):
         return s
 
     def to_bytes(self, elf: Elf, strsec: SECTION = SECTION.STRTAB) -> bytes:
-        strtab_editor: StrTabEditor = elf.get_editor(EDITOR.STRTAB, strsec)
+        from ..editors.strtab_editor import StrTabEditor
+        # strtab_editor: StrTabEditor = elf.get_editor(EDITOR.STRTAB, strsec)
+        strtab_editor = StrTabEditor(elf, strsec)
         # dynent_editor: DynamicEntryEditor = elf.get_editor(EDITOR.DYNAMIC_ENTRY)
         # dyntab = dynent_editor.read_dynamic_entries()
 
@@ -97,7 +117,7 @@ class Symbol(Element, api.Symbol):
         return string
 
 
-class SymbolTable(api.SymbolTable):
+class SymbolTable(list[Symbol]):
     def defined_symbols(self):
         return filter(lambda e: e.is_defined(), self)
 
