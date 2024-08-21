@@ -1,4 +1,5 @@
 # from woodelf.api import Elf
+from .section_editor import SectionEditor
 from ..core.elf import Elf
 from ..constants import SECTION
 from ..core import Editor
@@ -19,7 +20,8 @@ class SymbolEditor(Editor):
         super().__init__(elf)
 
     def read_symbol_table(self, rev_idx: int = -1) -> SymbolTable | None:
-        sym_sec = self.elf.get_section(self.__section)
+        # sym_sec = self.elf.get_section(self.__section)
+        sym_sec = SectionEditor(self.elf, self.__section)
         rev = self.elf.revisions[rev_idx]
         cache = self.elf.get_cache(rev, self.__section.name)
 
@@ -46,9 +48,10 @@ class SymbolEditor(Editor):
         return st
 
     def write_symbol_table(self, st: SymbolTable) -> bool:
-        dynsym = self.elf.get_section(self.__section)
+        # dynsym = self.elf.get_section(self.__section)
+        dynsym = SectionEditor(self.elf, self.__section)
         rev = self.elf.get_current_revision()
-        cache = self.elf.get_cache(rev, 'symbol')
+        cache = self.elf.get_cache(rev, self.__section.name)
 
         if not dynsym:
             return False

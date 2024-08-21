@@ -1,39 +1,39 @@
-from ..core.section import Section
+from .section_editor import SectionEditor
 from ..core import Editor, Elf
 from ..constants import SECTION
 
 
-class StrTabEditor(Editor):
+class StrTabEditor(SectionEditor):
     elf: Elf
-    section_type: SECTION
-    section: Section
+    # section_type: SECTION
+    # section: SectionEditor
 
-    def __init__(self, elf: Elf, section: SECTION, base_editor: Editor | None = None, _unsafe=False):
-        super().__init__(elf)
+    def __init__(self, elf: Elf, section: SECTION, _unsafe=False):
+        super().__init__(elf, section)
 
         self.elf = elf
-        self.section_type = section
-        self.section = elf.get_section(section, _unsafe=_unsafe)
+        # self.section_type = section
+        # self.section = elf.get_section(section, _unsafe=_unsafe)
 
     def append(self, string: str):
         bstring = string.encode('ascii') + b'\0'
-        content = self.section.read_content() + bstring
-        self.section.write_content(content)
+        content = self.read_content() + bstring
+        self.write_content(content)
 
     def find(self, string: str) -> int:
         bstring = string.encode('ascii') + b'\0'
-        return self.section.find(bstring)
+        return super().find(bstring)
 
     def has(self, string: str) -> bool:
         return self.find(string) >= 0
 
     def get_str(self, pos: int) -> str:
-        c = self.section.read_content()
+        c = self.read_content()
         end = c.find(b'\0', pos)
 
         return c[pos:end].decode(encoding='ascii')
 
     def __str__(self):
-        string = '=======\nSection ' + self.section.name + '\n-------\n'
-        string += str(self.section.read_content())
+        string = '=======\nSection ' + self.name + '\n-------\n'
+        string += str(self.read_content())
         return string

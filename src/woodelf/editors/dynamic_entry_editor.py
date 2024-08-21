@@ -1,5 +1,6 @@
 
 # from .. import api
+from .section_editor import SectionEditor
 from ..core import Editor, Elf
 from ..constants import SECTION, DYNAMIC_ENTRY_TAG
 from ..elements.dynamic_entry import DynamicEntry
@@ -13,7 +14,8 @@ class DynamicEntryEditor(Editor):
         self.elf = elf
 
     def read_dynamic_entries(self, rev_idx: int = -1) -> list[DynamicEntry]:
-        dynamic = self.elf.get_section(SECTION.DYNAMIC)
+        # dynamic = self.elf.get_section(SECTION.DYNAMIC)
+        dynamic = SectionEditor(self.elf, SECTION.DYNAMIC)
         rev = self.elf.revisions[rev_idx]
         cache = self.elf.get_cache(rev, 'dyn_ents')
 
@@ -44,7 +46,8 @@ class DynamicEntryEditor(Editor):
         for dyn in dynlist:
             b += dyn.to_bytes(self.elf)
 
-        if not (dynamic := self.elf.get_section(SECTION.DYNAMIC)):
+        # if not (dynamic := self.elf.get_section(SECTION.DYNAMIC)):
+        if not (dynamic := SectionEditor(self.elf, SECTION.DYNAMIC)):
             return False
         
         dynamic.write_content(b)

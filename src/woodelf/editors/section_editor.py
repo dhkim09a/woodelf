@@ -7,10 +7,12 @@ import sh
 # from ..editors import SectionHeaderEditor
 from ..constants import SECTION
 from ..util import readelf_hexdump_to_bytearray
-from .elf import Elf
+from ..core.elf import Elf
 
-class Section:
+class SectionEditor:
     elf: Elf
+    name: str
+    tag: SECTION
     readsection: Callable
 
     def __init__(self, elf: Elf, section: SECTION):
@@ -51,7 +53,7 @@ class Section:
         return content
 
     def write_content(self, content: bytes):
-        from ..editors import SectionHeaderEditor
+        from . import SectionHeaderEditor
 
         current_rev = self.elf.get_current_revision()
         next_rev = tempfile.mktemp(dir=self.elf.workdir.name)

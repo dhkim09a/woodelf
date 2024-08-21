@@ -1,9 +1,13 @@
 from typing import Union, List, Tuple
 
+from ..elements.dynamic_entry import DynamicEntry
+
+from .section_editor import SectionEditor
+
 from .section_header_editor import SectionHeaderEditor
 
 from ..util import gnu_hash
-from ..core import Editor, Elf, Section
+from ..core import Editor, Elf
 from ..elements.symbol_version import Verdef, Verdaux, Verneed, Vernaux, VersionTable, VerdefTable, VerneedTable, Version
 from ..constants import SECTION, DYNAMIC_ENTRY_TAG
 
@@ -12,9 +16,9 @@ from .strtab_editor import StrTabEditor
 
 
 class SymbolVersionEditor(Editor):
-    version: Section | None = None
-    version_d: Section | None = None
-    version_r: Section | None = None
+    version: SectionEditor | None = None
+    version_d: SectionEditor | None = None
+    version_r: SectionEditor | None = None
 
     dynent_editor: DynamicEntryEditor | None = None
     dynstr_editor: StrTabEditor | None = None
@@ -26,14 +30,20 @@ class SymbolVersionEditor(Editor):
 
         # she: SectionHeaderEditor = elf.get_editor(EDITOR.SECTION_HEADER)
         she = SectionHeaderEditor(elf)
-        section_names = {s.name for s in she.read_section_header_table()}
+        if not (sht := she.read_section_header_table()):
+            return
+
+        section_names = {s.name for s in sht}
 
         if SECTION.GNU_VERSION.value in section_names:
-            self.version = elf.get_section(SECTION.GNU_VERSION)
+            # self.version = elf.get_section(SECTION.GNU_VERSION)
+            self.version = SectionEditor(elf, SECTION.GNU_VERSION)
         if SECTION.GNU_VERSION_D.value in section_names:
-            self.version_d = elf.get_section(SECTION.GNU_VERSION_D)
+            # self.version_d = elf.get_section(SECTION.GNU_VERSION_D)
+            self.version_d = SectionEditor(elf, SECTION.GNU_VERSION_D)
         if SECTION.GNU_VERSION_R.value in section_names:
-            self.version_r = elf.get_section(SECTION.GNU_VERSION_R)
+            # self.version_r = elf.get_section(SECTION.GNU_VERSION_R)
+            self.version_r = SectionEditor(elf, SECTION.GNU_VERSION_R)
 
         if SECTION.DYNAMIC.value in section_names:
             # self.dynent_editor = self.elf.get_editor(EDITOR.DYNAMIC_ENTRY)
@@ -167,9 +177,9 @@ class SymbolVersionEditor(Editor):
 
         self.version.write_content(b)
 
-    def __write_version_definition(self, verdef_table: VerdefTable):
+    def __write_version_definition(self, verdef_table: VerdefTable) -> bool:
         if not self.version_d:
-            return
+            return False
 
         b = bytes()
         for verdef in verdef_table:
@@ -180,32 +190,45 @@ class SymbolVersionEditor(Editor):
             for verdaux in verdef.veraux_table:
                 if self.dynstr_editor and not self.dynstr_editor.has(verdaux.name):
                     self.dynstr_editor.append(verdaux.name)
-                b += verdaux.to_bytes(self.elf)
+                if (verdaux_bytes := verdaux.to_bytes(self.elf)) is None:
+                    return False
+                b += verdaux_bytes
 
         self.version_d.write_content(b)
 
         self.__adjust_DT_VERDEFNUM(verdef_table)
         self.__adjust_VERSION_D_section_info(verdef_table)
 
-    def __write_version_requirement(self, verneed_table: VerneedTable):
-        vna_other = len(self.read_version_definition())
+        return True
+
+    def __write_version_requirement(self, verneed_table: VerneedTable) -> bool:
+        if not self.version_r:
+            return False
+
+        verdef_table = self.read_version_definition()
+        vna_other = len(verdef_table) if verdef_table else 0
         b = bytes()
         for verneed in verneed_table:
-            verneed: Verneed
-            b += verneed.to_bytes(self.elf)
+            if (verneed_bytes := verneed.to_bytes(self.elf)) is None:
+                return False
+            b += verneed_bytes
             if not verneed.veraux_table:
                 continue
             for vernaux in verneed.veraux_table:
-                if not self.dynstr_editor.has(vernaux.name):
+                if self.dynstr_editor and not self.dynstr_editor.has(vernaux.name):
                     self.dynstr_editor.append(vernaux.name)
                 vernaux.other = (vna_other := vna_other + 1)
+                if (vernaux_bytes := vernaux.to_bytes(self.elf)) is None:
+                    return False
 
-                b += vernaux.to_bytes(self.elf)
+                b += vernaux_bytes
 
         self.version_r.write_content(b)
 
         self.__adjust_DT_VERNEEDNUM(verneed_table)
         self.__adjust_VERSION_R_section_info(verneed_table)
+
+        return True
 
     def write(self, version_table: VersionTable | None = None, verdef_table: VerdefTable | None = None,
               verneed_table: VerneedTable | None = None):
@@ -221,23 +244,29 @@ class SymbolVersionEditor(Editor):
             verneed_table = self.read_version_requirement()
 
         # The order of writing definitions, requirements, and versions is important
-        self.__write_version_definition(verdef_table)
-        self.__write_version_requirement(verneed_table)
-        self.__write_versions(version_table)
+        if verdef_table:
+            self.__write_version_definition(verdef_table)
+        if verneed_table:
+            self.__write_version_requirement(verneed_table)
+        if version_table:
+            self.__write_versions(version_table)
 
     def __get_version_from_verdeftab(self, vername: str) -> int:
-        verdeftab = self.read_version_definition()
+        if not (verdeftab := self.read_version_definition()):
+            return -1
+
         for verdef in verdeftab:
-            verdef: Verdef
+            # verdef: Verdef
             if verdef.hash == gnu_hash(vername):
                 return verdef.ndx
         return -1
 
-    def __get_version_from_verneedtab(self, vername: str, soname: str = None) -> int:
+    def __get_version_from_verneedtab(self, vername: str, soname: str | None = None) -> int:
         # print(self.elf.get_editor(EDITOR.DYNAMIC_ENTRY).read_soname())
         # print(self)
         # print('__get_version_from_verneedtab')
-        verneedtab = self.read_version_requirement()
+        if not (verneedtab := self.read_version_requirement()):
+            return -1
         for verneed in verneedtab:
             verneed: Verneed
             # print(verneed)
@@ -269,7 +298,7 @@ class SymbolVersionEditor(Editor):
             raise KeyError(errstr)
         return ver
 
-    def get_vername_soname_by_version(self, idx: int) -> Tuple[str, str]:
+    def get_vername_soname_by_version(self, idx: int) -> Tuple[str, str | None]:
         if idx == 0:
             raise ValueError('Local symbols (indicated by zero version number) does not have associated vername and '
                              'soname')
@@ -277,26 +306,31 @@ class SymbolVersionEditor(Editor):
         # dynent_editor: DynamicEntryEditor = self.elf.get_editor(EDITOR.DYNAMIC_ENTRY)
         dynent_editor = DynamicEntryEditor(self.elf)
 
-        for verdef in self.read_version_definition():
-            verdef: Verdef
-            if verdef.get_ndx() == idx:
-                verdaux: Verdaux = next(verdef.veraux_table.__iter__())
-                return verdaux.name, dynent_editor.read_soname()
+        if verdef_table := self.read_version_definition():
+            for verdef in verdef_table:
+                # verdef: Verdef
+                if verdef.get_ndx() == idx and verdef.veraux_table:
+                    verdaux: Verdaux = next(verdef.veraux_table.__iter__())
+                    return verdaux.name, dynent_editor.read_soname()
 
-        for verneed in self.read_version_requirement():
-            verneed: Verneed
-            for vernaux in verneed.veraux_table:
-                vernaux: Vernaux
-                if vernaux.other == idx:
-                    return vernaux.name, verneed.file
+        if verneed_table := self.read_version_requirement():
+            for verneed in verneed_table:
+                # verneed: Verneed
+                if not verneed.veraux_table:
+                    continue
+
+                for vernaux in verneed.veraux_table:
+                    vernaux: Vernaux
+                    if vernaux.other == idx:
+                        return vernaux.name, verneed.file
 
         raise KeyError
 
-    def __str_version_definition(self):
-        verdef_table = self.read_version_definition()
+    def __str_version_definition(self) -> str:
+        if not (verdef_table := self.read_version_definition()):
+            return ''
         string = '=======\nSection .gnu.version_d\n-------\n'
         for verdef in verdef_table:
-            verdef: Verneed
             string += str(verdef) + '\n'
             if not verdef.veraux_table:
                 continue
@@ -304,11 +338,11 @@ class SymbolVersionEditor(Editor):
                 string += str(verdaux) + '\n'
         return string
 
-    def __str_version_requirement(self):
-        verneed_table = self.read_version_requirement()
+    def __str_version_requirement(self) -> str:
+        if not (verneed_table := self.read_version_requirement()):
+            return ''
         string = '=======\nSection .gnu.version_r\n-------\n'
         for verneed in verneed_table:
-            verneed: Verneed
             string += str(verneed) + '\n'
             if not verneed.veraux_table:
                 continue

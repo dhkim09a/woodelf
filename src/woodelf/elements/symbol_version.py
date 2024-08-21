@@ -20,37 +20,6 @@ class Veraux(Element):
         self.next = None
 
 
-class Ver(Veraux):
-    cnt: int
-    aux: Union[Veraux, None]
-
-    veraux_table: Union[VerauxTable, None]
-
-    def __init__(self):
-        super().__init__()
-        self.veraux_table = None
-
-    def append_veraux(self, veraux: Veraux):
-        if not self.veraux_table:
-            self.veraux_table = VerauxTable()
-            self.aux = veraux
-
-        self.veraux_table.append(veraux)
-
-        if self.cnt < len(self.veraux_table):
-            self.cnt = len(self.veraux_table)
-
-    def insert_veraux(self, index: int, veraux: Veraux):
-        if not self.veraux_table:
-            self.veraux_table = VerauxTable()
-            self.aux = veraux
-
-        self.veraux_table.insert(index, veraux)
-
-        if self.cnt < len(self.veraux_table):
-            self.cnt = len(self.veraux_table)
-
-
 class Verdaux(Veraux):
     name: str
     next: Union[Veraux, None]
@@ -106,86 +75,6 @@ class Verdaux(Veraux):
     def __str__(self):
         return '(verdaux) name: ' + str(self.name) \
                + ' (gnu hash: ' + hex(gnu_hash(self.name)) + ')'
-
-
-class Verdef(Ver):
-    version: int
-    flags: int
-    ndx: int
-    cnt: int
-    hash: int
-    aux: Union[Verdaux, None]
-    next: Union[Veraux, None]
-
-    def __init__(self, vda_name: str | None = None, vd_ndx: int = 1):
-        super().__init__()
-
-        self.version = 1
-        self.flags = 0
-        self.ndx = vd_ndx
-        self.cnt = 0
-
-        if vda_name:
-            self.hash = gnu_hash(vda_name)
-            verdaux = Verdaux(vda_name)
-            self.append_veraux(verdaux)
-        else:
-            self.hash = 0
-
-    @classmethod
-    def units(cls, elf: Elf) -> List[Union[ELF32, ELF64]]:
-        return [elf.unit.Half, elf.unit.Half, elf.unit.Half, elf.unit.Half,
-                elf.unit.Word, elf.unit.Word, elf.unit.Word]
-
-    @classmethod
-    def from_bytes(cls, elf: Elf, b: bytes):
-        r = cls.deserialize(elf, b)
-
-        assert isinstance(r, tuple) and len(r) == 7
-
-        vd_version, vd_flags, vd_ndx, vd_cnt, vd_hash, vd_aux, vd_next = r
-
-        if vd_version != 1:
-            print('error: vd_version must be 1')
-        if vd_aux != 0 and vd_aux != Verdef.size(elf):
-            print('error: weird vd_aux offset')
-
-        verdef = Verdef()
-
-        verdef.version = vd_version
-        verdef.flags = vd_flags
-        verdef.ndx = vd_ndx
-        verdef.cnt = vd_cnt
-        verdef.hash = vd_hash
-
-        return verdef
-
-    def to_bytes(self, elf: Elf):
-        if self.aux:
-            aux = Verdef.size(elf)
-        else:
-            aux = 0
-        if self.next:
-            nxt = Verdef.size(elf) + self.cnt * Verdaux.size(elf)
-        else:
-            nxt = 0
-
-        return self.serialize(elf, self.version, self.flags, self.ndx, self.cnt, self.hash, aux, nxt)
-
-    def __str__(self):
-        return '(verdef) version: ' + str(self.version) \
-               + ', flags: ' + str(self.flags) \
-               + ', ndx: ' + str(self.ndx) \
-               + ', cnt: ' + str(self.cnt) \
-               + ', hash: ' + hex(self.hash)
-
-    def update(self, new_version: str, ndx: int):
-        self.hash = gnu_hash(new_version)
-        self.ndx = ndx
-        self.insert_veraux(0, Verdaux(new_version))
-
-    def get_ndx(self):
-        return self.ndx
 
 
 class Vernaux(Veraux):
@@ -259,12 +148,125 @@ class Vernaux(Veraux):
         return self.serialize(elf, self.hash, self.flags, self.other, vna_name, vna_next)
 
 
-class Verneed(Ver):
+A = TypeVar('A', Verdaux, Vernaux)
+
+class Ver(Veraux, Generic[A]):
+    cnt: int
+    aux: Union[Veraux, None]
+
+    veraux_table: Union[VerauxTable[A], None]
+
+    def __init__(self):
+        super().__init__()
+        self.veraux_table = None
+
+    def append_veraux(self, veraux: A):
+        if not self.veraux_table:
+            self.veraux_table = VerauxTable[A]()
+            self.aux = veraux
+
+        self.veraux_table.append(veraux)
+
+        if self.cnt < len(self.veraux_table):
+            self.cnt = len(self.veraux_table)
+
+    def insert_veraux(self, index: int, veraux: A):
+        if not self.veraux_table:
+            self.veraux_table = VerauxTable[A]()
+            self.aux = veraux
+
+        self.veraux_table.insert(index, veraux)
+
+        if self.cnt < len(self.veraux_table):
+            self.cnt = len(self.veraux_table)
+
+
+class Verdef(Ver[Verdaux]):
+    version: int
+    flags: int
+    ndx: int
+    cnt: int
+    hash: int
+    aux: Union[Verdaux, None]
+    next: Union[Verdef, None]
+
+    def __init__(self, vda_name: str | None = None, vd_ndx: int = 1):
+        super().__init__()
+
+        self.version = 1
+        self.flags = 0
+        self.ndx = vd_ndx
+        self.cnt = 0
+
+        if vda_name:
+            self.hash = gnu_hash(vda_name)
+            verdaux = Verdaux(vda_name)
+            self.append_veraux(verdaux)
+        else:
+            self.hash = 0
+
+    @classmethod
+    def units(cls, elf: Elf) -> List[Union[ELF32, ELF64]]:
+        return [elf.unit.Half, elf.unit.Half, elf.unit.Half, elf.unit.Half,
+                elf.unit.Word, elf.unit.Word, elf.unit.Word]
+
+    @classmethod
+    def from_bytes(cls, elf: Elf, b: bytes):
+        r = cls.deserialize(elf, b)
+
+        assert isinstance(r, tuple) and len(r) == 7
+
+        vd_version, vd_flags, vd_ndx, vd_cnt, vd_hash, vd_aux, vd_next = r
+
+        if vd_version != 1:
+            print('error: vd_version must be 1')
+        if vd_aux != 0 and vd_aux != Verdef.size(elf):
+            print('error: weird vd_aux offset')
+
+        verdef = Verdef()
+
+        verdef.version = vd_version
+        verdef.flags = vd_flags
+        verdef.ndx = vd_ndx
+        verdef.cnt = vd_cnt
+        verdef.hash = vd_hash
+
+        return verdef
+
+    def to_bytes(self, elf: Elf):
+        if self.aux:
+            aux = Verdef.size(elf)
+        else:
+            aux = 0
+        if self.next:
+            nxt = Verdef.size(elf) + self.cnt * Verdaux.size(elf)
+        else:
+            nxt = 0
+
+        return self.serialize(elf, self.version, self.flags, self.ndx, self.cnt, self.hash, aux, nxt)
+
+    def __str__(self):
+        return '(verdef) version: ' + str(self.version) \
+               + ', flags: ' + str(self.flags) \
+               + ', ndx: ' + str(self.ndx) \
+               + ', cnt: ' + str(self.cnt) \
+               + ', hash: ' + hex(self.hash)
+
+    def update(self, new_version: str, ndx: int):
+        self.hash = gnu_hash(new_version)
+        self.ndx = ndx
+        self.insert_veraux(0, Verdaux(new_version))
+
+    def get_ndx(self):
+        return self.ndx
+
+
+class Verneed(Ver[Vernaux]):
     version: int
     cnt: int
     file: str
     aux: Union[Vernaux, None]
-    next: Union[Veraux, None]
+    next: Union[Verneed, None]
 
     @classmethod
     def size(cls, elf: Elf) -> int:
@@ -363,8 +365,8 @@ class VerauxTable(Generic[V]):
             if self.next:
                 cur = self.next
                 if self.next.next:
-                    assert isinstance(self.next.next, Veraux)
-                    self.next = self.next.next
+                    # assert isinstance(self.next.next, type(self.next))
+                    self.next = self.next.next # type: ignore
                 else:
                     self.next = None
                 return cur
@@ -381,7 +383,7 @@ class VerauxTable(Generic[V]):
     def __len__(self):
         return self.size
 
-    def __getitem__(self, key: int):
+    def __getitem__(self, key: int) -> V:
         if not isinstance(key, int):
             raise TypeError('list indices must be integers')
 
@@ -392,10 +394,11 @@ class VerauxTable(Generic[V]):
             return self.head
         else:
             while (next_v := v.next) and (key := key - 1):
+                assert isinstance(next_v, type(v))
                 v = next_v
             if not next_v:
                 raise IndexError('list index out of range')
-            return next_v
+            return next_v # type: ignore
 
     def __setitem__(self, key: int, value: V):
         if not isinstance(key, int):
@@ -413,7 +416,7 @@ class VerauxTable(Generic[V]):
         while next_v := v.next:
             v = next_v
 
-        v.next = version
+        v.next = version # type: ignore
 
     def insert(self, index: int, version: V):
         if not isinstance(version, Veraux):
@@ -433,13 +436,13 @@ class VerauxTable(Generic[V]):
         assert 0 <= index <= len(self)
 
         if index == 0:
-            version.next = self.head
+            version.next = self.head # type: ignore
             self.head = version
         else:
             while (next_v := v.next) and (index := index - 1):
                 v = next_v
-            v.next = version
-            version.next = next_v
+            v.next = version # type: ignore
+            version.next = next_v # type: ignore
 
 
 class Version(Element):
@@ -491,7 +494,6 @@ class Version(Element):
         return string
 
 
-
 class VersionTable(list[Version]):
     pass
 
@@ -502,7 +504,8 @@ class VerdefTable(VerauxTable[Verdef]):
 
     def add_entry(self, vda_name: str) -> Verdef:
         vd_ndx = self[len(self) - 1].ndx + 1
-        if matches := [e for e in filter(lambda e: e.ndx == vd_ndx, self)]:
+        # if matches := [e for e in filter(lambda e: e.ndx == vd_ndx, self)]:
+        if matches := [e for e in self if e.ndx == vd_ndx]:
             assert len(matches) == 1
             verdef: Verdef = matches[0]
             verdef.update(vda_name, vd_ndx)
@@ -518,10 +521,12 @@ class VerneedTable(VerauxTable[Verneed]):
     next: Union[Verneed, None]
 
     def add_entry(self, vn_file: str, vna_name: str):
-        if matches := [e for e in filter(lambda e: e.file == vn_file, self)]:
+        # if matches := [e for e in filter(lambda e: e.file == vn_file, self)]:
+        if matches := [e for e in self if e.file == vn_file]:
             assert len(matches) == 1
             verneed: Verneed = matches[0]
-            if matches := [e for e in filter(lambda e: e.name == vna_name, verneed.veraux_table)]:
+            # if matches := [e for e in filter(lambda e: e.name == vna_name, verneed.veraux_table)]:
+            if verneed.veraux_table and (matches := [e for e in verneed.veraux_table if e.name == vna_name]):
                 assert len(matches) == 1
             else:
                 vernaux = Vernaux(vna_name)
