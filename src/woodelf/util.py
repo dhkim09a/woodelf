@@ -1,3 +1,10 @@
+from typing import Literal
+
+
+class MalformedElfError(Exception):
+    pass
+
+
 def gnu_hash_binutils_bfd_elf(string: str):
     """ toolchain/binutils/binutils-2.27/bfd/elf.c
 
@@ -85,6 +92,6 @@ def readelf_hexdump_to_bytearray(hexdump: str) -> bytearray:
     return b
 
 
-def unpack_bytes_to_ints(b: bytes, segment_size: int, byteorder: str, signed=False):
+def unpack_bytes_to_ints(b: bytes, segment_size: int, byteorder: Literal['little', 'big'], signed=False):
     assert (len(b) % segment_size) == 0
     return [int.from_bytes(b[i:i+segment_size], byteorder, signed=signed) for i in range(0, len(b), segment_size)]

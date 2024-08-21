@@ -1,6 +1,8 @@
 from hexdump import hexdump
 from os import path as _p
 
+from ..util import MalformedElfError
+
 from .elf_header_editor import ElfHeaderEditor
 from ..constants import SECTION
 from ..core import Editor
@@ -23,7 +25,7 @@ class SectionHeaderEditor(Editor):
             return sht
         
         if (siz := _p.getsize(rev)) < elfhdr.shoff + elfhdr.shnum * elfhdr.shentsize:
-            raise Exception(f'Section header table is truncated: file size ({siz}) < section header table offset ({elfhdr.shoff}) + section header table size ({elfhdr.shnum * elfhdr.shentsize})')
+            raise MalformedElfError(f'Section header table is truncated: file size ({siz}) < section header table offset ({elfhdr.shoff}) + section header table size ({elfhdr.shnum * elfhdr.shentsize})')
 
         with open(rev, 'rb') as f:
             f.seek(elfhdr.shoff)

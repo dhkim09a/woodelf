@@ -9,18 +9,27 @@ from ..constants import SECTION
 from ..util import readelf_hexdump_to_bytearray
 from ..core.elf import Elf
 
+
 class SectionEditor:
     elf: Elf
     name: str
     tag: SECTION
-    readsection: Callable
+    # readsection: Callable
 
     def __init__(self, elf: Elf, section: SECTION):
         self.elf = elf
         self.name = section.value
         self.tag = section
-        self.readsection = elf.readelf.bake(x=self.name)
+        # self.readsection = elf.readelf.bake(x=self.name)
         # self.readsection = elf.readelf.bake(x=1)
+
+    def readelf_dump_section(self, rev_idx: int = -1) -> str | None:
+        # readelf rarely fails
+        while range(2):
+            try:
+                return self.elf.readelf(self.elf.revisions[rev_idx], x=self.name)
+            except sh.ErrorReturnCode:
+                pass
 
     def read_content(self, rev_idx: int = -1, no_ext_checking: bool = False) -> bytearray | None:
         from .section_header_editor import SectionHeaderEditor
@@ -37,7 +46,9 @@ class SectionEditor:
         if self.name == str(SECTION.SHSTRTAB):
             # Unfortunately, objdump cannot dump .shstrtab
             # print(f'readelf hexdump (with {self.readsection}): \n{self.readsection(rev)}')
-            content = readelf_hexdump_to_bytearray(self.readsection(rev))
+            if not (readelf_dump := self.readelf_dump_section(rev_idx)):
+                return
+            content = readelf_hexdump_to_bytearray(readelf_dump)
             cache.update(content)
             return content
 
@@ -49,7 +60,9 @@ class SectionEditor:
             with open(tmpf, 'rb') as f:
                 content = bytearray(f.read())
         except (FileNotFoundError, sh.ErrorReturnCode):
-            content = readelf_hexdump_to_bytearray(self.readsection(rev))
+            if not (readelf_dump := self.readelf_dump_section(rev_idx)):
+                return
+            content = readelf_hexdump_to_bytearray(readelf_dump)
             cache.update(content)
             return content
 
