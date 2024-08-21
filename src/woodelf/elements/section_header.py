@@ -31,10 +31,10 @@ class SectionHeader(Element):
             = r
 
         # shstrtab: StrTabEditor = elf.get_editor(EDITOR.STRTAB, SECTION.SHSTRTAB, _unsafe=True)
-        shstrtab = StrTabEditor(elf, SECTION.SHSTRTAB, _unsafe=True)
+        shstrtab = StrTabEditor(elf, SECTION.SHSTRTAB)
 
         sh = SectionHeader()
-        sh.name = shstrtab.get_str(sh_name)
+        sh.name = shstrtab.get_str(sh_name, _unsafe=True)
         sh.type = sh_type
         sh.flags = sh_flags
         sh.addr = sh_addr

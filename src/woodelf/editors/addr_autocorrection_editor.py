@@ -307,6 +307,8 @@ class AddrAutocorrectionEditor(Editor):
 
             orig_contents = se.read_content(rev_idx=0)
 
+            assert orig_contents # FIXME: 082124 What should do for this case?
+
             if (len(orig_contents) % int(self.elf.unit.Addr)) != 0:
                 # dee: DynamicEntryEditor = self.elf.get_editor(EDITOR.DYNAMIC_ENTRY)
                 # print(self.elf, dee.read_soname())
@@ -315,6 +317,8 @@ class AddrAutocorrectionEditor(Editor):
                 continue
 
             new_contents = se.read_content()
+
+            assert new_contents # FIXME: 082124 What should do for this case?
 
             orig_addrs = unpack_bytes_to_ints(orig_contents, int(self.elf.unit.Addr), self.elf.endian, signed=False)
 
@@ -382,6 +386,8 @@ class AddrAutocorrectionEditor(Editor):
             #     return False
 
             content = sec.read_content()
+            assert content # FIXME: 082124 What should do for this case?
+
             content += b'\0' * (orig_gap - new_gap)
             sec.write_content(content)
 
@@ -464,6 +470,8 @@ class AddrAutocorrectionEditor(Editor):
                 continue
 
             content = s.read_content()
+
+            assert content # FIXME: 082124 What should do for this case?
 
             content = self.__auto_adjust_code_x86_64(sh.addr, content, trans)
 

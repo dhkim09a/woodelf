@@ -22,7 +22,12 @@ class SectionEditor:
         self.readsection = elf.readelf.bake(x=self.name)
         # self.readsection = elf.readelf.bake(x=1)
 
-    def read_content(self, rev_idx: int = -1) -> bytearray:
+    def read_content(self, rev_idx: int = -1, no_ext_checking: bool = False) -> bytearray | None:
+        from .section_header_editor import SectionHeaderEditor
+
+        if not no_ext_checking and not SectionHeaderEditor(self.elf).read_section_header(self.tag, rev_idx=rev_idx):
+            return
+
         rev = self.elf.revisions[rev_idx]
         cache = self.elf.get_cache(rev, 'sec: ' + str(self.tag))
 
@@ -53,12 +58,15 @@ class SectionEditor:
         return content
 
     def write_content(self, content: bytes):
-        from . import SectionHeaderEditor
+        from .section_header_editor import SectionHeaderEditor
 
         current_rev = self.elf.get_current_revision()
         next_rev = tempfile.mktemp(dir=self.elf.workdir.name)
 
-        if (len(content) == len(self.read_content())
+        curr_content_len = self.read_content() or 0
+
+        if (len(content) > 0
+            and len(content) == curr_content_len
             and (she := SectionHeaderEditor(self.elf))
             and (sh := she.read_section_header(self.tag))):
             # she: SectionHeaderEditor = self.elf.get_editor(EDITOR.SECTION_HEADER)
@@ -81,7 +89,10 @@ class SectionEditor:
         if isinstance(target, str):
             target = target.encode('ascii')
 
-        return self.read_content().find(target)
+        if not (curr_content := self.read_content()):
+            return -1
+
+        return curr_content.find(target)
 
     def __str__(self):
         return self.name

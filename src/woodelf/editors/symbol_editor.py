@@ -8,7 +8,6 @@ from ..elements import Symbol, SymbolTable
 
 
 class SymbolEditor(SectionEditor):
-    __section: SECTION
     __str_section: SECTION
 
     def __init__(self, elf: Elf, section: Literal[SECTION.SYMTAB, SECTION.DYNSYM]):
@@ -21,7 +20,7 @@ class SymbolEditor(SectionEditor):
 
     def read_symbol_table(self, rev_idx: int = -1) -> SymbolTable | None:
         rev = self.elf.revisions[rev_idx]
-        cache = self.elf.get_cache(rev, self.__section.name)
+        cache = self.elf.get_cache(rev, self.name)
 
         if st := cache.lookup():
             return st
@@ -44,7 +43,7 @@ class SymbolEditor(SectionEditor):
 
     def write_symbol_table(self, st: SymbolTable) -> bool:
         rev = self.elf.get_current_revision()
-        cache = self.elf.get_cache(rev, self.__section.name)
+        cache = self.elf.get_cache(rev, self.name)
 
         b = bytes()
 
