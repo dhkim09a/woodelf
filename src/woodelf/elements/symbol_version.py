@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from typing import Generic, TypeVar, Union, List, Protocol
 
 # from ..editors.symbol_version_editor import SymbolVersionEditor
@@ -446,8 +447,14 @@ class VerauxTable(Generic[V]):
 
 
 class Version(Element):
-    soname: str | None
     name: str | None
+    soname: str | None
+    hidden: bool
+
+    def __init__(self, name: str | None, soname: str | None, hidden: bool) -> None:
+        self.name = name
+        self.soname = soname
+        self.hidden = hidden
 
     @classmethod
     def units(cls, elf: Elf) -> List[Union[ELF32, ELF64]]:
@@ -458,19 +465,23 @@ class Version(Element):
     def from_bytes(cls, elf: Elf, b: bytes):
         from ..editors.symbol_version_editor import SymbolVersionEditor
 
-        # symver_editor: SymbolVersionEditor = elf.get_editor(EDITOR.SYMBOL_VERSION)
         symver_editor = SymbolVersionEditor(elf)
-        ver = Version()
         vna_other = cls.deserialize(elf, b)
         assert isinstance(vna_other, int)
         if vna_other != 0:
-            name, soname = symver_editor.get_vername_soname_by_version(vna_other)
-            ver.name = name
-            ver.soname = soname
-        else:
-            ver.name = ver.soname = None
+            # https://refspecs.linuxfoundation.org/LSB_3.0.0/LSB-PDA/LSB-PDA.junk/symversion.html
+            if hidden := bool(vna_other & 0x8000):
+                vna_other &= ~0x8000
 
-        return ver
+            try:
+                name, soname = symver_editor.get_vername_soname_by_version(vna_other)
+                return Version(name, soname, hidden)
+            except KeyError:
+                # print(f'Could not find version {vna_other} in the symbol version table. This is likely a bug. Please report it.', file=sys.stderr)
+                # ver.name = ver.soname = f'INVALID_{hex(vna_other)}'
+                return Version(f'INVALID({hex(vna_other)})', f'INVALID({hex(vna_other)})', False)
+        else:
+            return Version(None, None, False)
 
     def to_bytes(self, elf: Elf) -> bytes:
         from ..editors.symbol_version_editor import SymbolVersionEditor
@@ -480,6 +491,8 @@ class Version(Element):
             value = symver_editor.get_version_by_name(self.name, self.soname)
         else:
             value = 0
+        if self.hidden:
+            value |= 0x8000
         return self.serialize(elf, value)
 
     def is_local(self):
@@ -489,8 +502,16 @@ class Version(Element):
         if self.is_local():
             return 'LOCAL'
         string = self.name or ''
+        attr_strs: list[str] = []
+
         if self.soname:
-            string += ' (from ' + self.soname + ')'
+            attr_strs.append('from ' + self.soname)
+        if self.hidden:
+            attr_strs.append('hidden')
+
+        if attr_strs:
+            string += ' (' + ', '.join(attr_strs) + ')'
+
         return string
 
 
