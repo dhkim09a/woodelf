@@ -73,6 +73,13 @@ class SymbolVersionEditor(Editor):
         if not self.__version_d:
             return
 
+        # 082224 FIXME: Invalidate after write()
+        rev = self.elf.revisions[rev_idx]
+        cache = self.elf.get_cache(rev, 'verdef')
+
+        if cached_verdef := cache.lookup():
+            return cached_verdef
+
         verdef_table = VerdefTable()
 
         if not (c := self.__version_d.read_content(rev_idx=rev_idx)):
@@ -121,11 +128,20 @@ class SymbolVersionEditor(Editor):
             if next_off < Verdef.size(self.elf) or verdef_pos >= len(c):
                 break
 
+        cache.update(verdef_table)
+
         return verdef_table
 
     def read_version_requirement(self, rev_idx: int = -1) -> VerneedTable | None:
         if not self.__version_r:
             return
+
+        # 082224 FIXME: Invalidate after write()
+        rev = self.elf.revisions[rev_idx]
+        cache = self.elf.get_cache(rev, 'verneed')
+
+        if cached_verneed := cache.lookup():
+            return cached_verneed
 
         verneed_table = VerneedTable()
 
@@ -176,6 +192,8 @@ class SymbolVersionEditor(Editor):
 
             if next_off < Verneed.size(self.elf) or verneed_pos >= len(c):
                 break
+
+        cache.update(verneed_table)
 
         return verneed_table
 
