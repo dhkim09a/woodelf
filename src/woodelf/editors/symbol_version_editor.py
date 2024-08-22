@@ -115,11 +115,11 @@ class SymbolVersionEditor(Editor):
 
             assert isinstance(verdef.next, int)
 
-            if verdef.next < Verdef.size(self.elf) or verdef_pos + verdef.next >= len(c):
-                break
-
-            verdef_pos += verdef.next
+            verdef_pos += (next_off := verdef.next)
             verdef_table.append(verdef)
+
+            if next_off < Verdef.size(self.elf) or verdef_pos >= len(c):
+                break
 
         return verdef_table
 
@@ -171,12 +171,11 @@ class SymbolVersionEditor(Editor):
 
             assert isinstance(verneed.next, int)
 
-            if verneed.next < Verneed.size(self.elf) or verneed_pos + verneed.next >= len(c):
-                verneed.next = None
-                break
-
-            verneed_pos += verneed.next
+            verneed_pos += (next_off := verneed.next)
             verneed_table.append(verneed)
+
+            if next_off < Verneed.size(self.elf) or verneed_pos >= len(c):
+                break
 
         return verneed_table
 
