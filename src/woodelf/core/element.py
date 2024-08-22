@@ -38,7 +38,7 @@ class Element:
         # if len(b) != cls.__size(elf):
         #     print(f"Expected {cls.__size(elf)} bytes, got {len(b)}")
 
-        assert len(b) == cls.__size(elf)
+        assert len(b) == cls.__size(elf), f'Expected {cls.__size(elf)} bytes for {cls.__name__}, got {len(b)} bytes.'
 
         for unit in cls.units(elf):
             signed = unit in [ELF32.Sword, ELF32.Sxword, ELF64.Sword, ELF64.Sxword]

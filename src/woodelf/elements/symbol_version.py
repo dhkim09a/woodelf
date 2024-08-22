@@ -23,7 +23,7 @@ class Veraux(Element):
 
 class Verdaux(Veraux):
     name: str
-    next: Union[Veraux, None]
+    next: Verdaux | int | None
 
     def __init__(self, vda_name: str):
         super().__init__()
@@ -42,8 +42,8 @@ class Verdaux(Veraux):
         vda_name = int.from_bytes(b[pos:(pos := pos + int(elf.unit.Word))], byteorder=elf.endian, signed=False)
         vda_next = int.from_bytes(b[pos:(pos := pos + int(elf.unit.Word))], byteorder=elf.endian, signed=False)
 
-        if vda_next != 0 and vda_next != Verdaux.size(elf):
-            print('error: weird vn_aux offset')
+        # if vda_next != 0 and vda_next != Verdaux.size(elf):
+        #     print(f'error: vda_next ({vda_next}) is not the same with the size of Verdaux ({Verdaux.size(elf)})')
 
         if not (dynstr_editor := StrTabEditor(elf, SECTION.DYNSTR)):
             return None
@@ -51,6 +51,7 @@ class Verdaux(Veraux):
         name = dynstr_editor.get_str(vda_name)
 
         verdaux = Verdaux(name)
+        verdaux.next = vda_next
 
         return verdaux
 
@@ -81,7 +82,7 @@ class Verdaux(Veraux):
 class Vernaux(Veraux):
     hash: int
     flags: int
-    next: Union[Veraux, None]
+    next: Vernaux | int | None
 
     def __init__(self, vna_name: str):
         super().__init__()
@@ -108,8 +109,8 @@ class Vernaux(Veraux):
 
         vna_hash, vna_flags, vna_other, vna_name, vna_next = r
 
-        if vna_next != 0 and vna_next != Vernaux.size(elf):
-            print('error: weird vn_aux offset')
+        # if vna_next != 0 and vna_next != Vernaux.size(elf):
+        #     print(f'error: vna_next ({vna_next}) is not the same with the size of Vernaux ({Vernaux.size(elf)})')
 
         if not (dynstr_editor := StrTabEditor(elf, SECTION.DYNSTR)):
             return None
@@ -121,6 +122,7 @@ class Vernaux(Veraux):
         vernaux.other = vna_other
         vernaux.hash = vna_hash
         vernaux.flags = vna_flags
+        vernaux.next = vna_next
 
         return vernaux
 
@@ -188,8 +190,8 @@ class Verdef(Ver[Verdaux]):
     ndx: int
     cnt: int
     hash: int
-    aux: Union[Verdaux, None]
-    next: Union[Verdef, None]
+    aux: Verdaux | int | None
+    next: Verdef | int | None
 
     def __init__(self, vda_name: str | None = None, vd_ndx: int = 1):
         super().__init__()
@@ -221,8 +223,8 @@ class Verdef(Ver[Verdaux]):
 
         if vd_version != 1:
             print('error: vd_version must be 1')
-        if vd_aux != 0 and vd_aux != Verdef.size(elf):
-            print('error: weird vd_aux offset')
+        # if vd_aux != 0 and vd_aux != Verdef.size(elf):
+        #     print(f'error: vd_aux ({vd_aux}) is not the same with the size of Verdef ({Verdef.size(elf)})')
 
         verdef = Verdef()
 
@@ -231,6 +233,8 @@ class Verdef(Ver[Verdaux]):
         verdef.ndx = vd_ndx
         verdef.cnt = vd_cnt
         verdef.hash = vd_hash
+        verdef.aux = vd_aux
+        verdef.next = vd_next
 
         return verdef
 
@@ -266,30 +270,41 @@ class Verneed(Ver[Vernaux]):
     version: int
     cnt: int
     file: str
-    aux: Union[Vernaux, None]
-    next: Union[Verneed, None]
+    aux: Vernaux | int | None
+    next: Verneed | int | None
+
+    # @classmethod
+    # def size(cls, elf: Elf) -> int:
+    #     return int(elf.unit.Half) * 2 + int(elf.unit.Word) * 3
 
     @classmethod
-    def size(cls, elf: Elf) -> int:
-        return int(elf.unit.Half) * 2 + int(elf.unit.Word) * 3
+    def units(cls, elf: Elf) -> List[Union[ELF32, ELF64]]:
+        return [elf.unit.Half, elf.unit.Half, elf.unit.Word, elf.unit.Word,
+                elf.unit.Word]
 
     @classmethod
     def from_bytes(cls, elf: Elf, b: bytes) -> Verneed | None:
         from ..editors.strtab_editor import StrTabEditor
         assert len(b) == Verneed.size(elf)
 
-        pos = 0
+        # pos = 0
 
-        vn_version = int.from_bytes(b[pos:(pos := pos + int(elf.unit.Half))], byteorder=elf.endian, signed=False)
-        vn_cnt = int.from_bytes(b[pos:(pos := pos + int(elf.unit.Half))], byteorder=elf.endian, signed=False)
-        vn_file = int.from_bytes(b[pos:(pos := pos + int(elf.unit.Word))], byteorder=elf.endian, signed=False)
-        vn_aux = int.from_bytes(b[pos:(pos := pos + int(elf.unit.Word))], byteorder=elf.endian, signed=False)
+        # vn_version = int.from_bytes(b[pos:(pos := pos + int(elf.unit.Half))], byteorder=elf.endian, signed=False)
+        # vn_cnt = int.from_bytes(b[pos:(pos := pos + int(elf.unit.Half))], byteorder=elf.endian, signed=False)
+        # vn_file = int.from_bytes(b[pos:(pos := pos + int(elf.unit.Word))], byteorder=elf.endian, signed=False)
+        # vn_aux = int.from_bytes(b[pos:(pos := pos + int(elf.unit.Word))], byteorder=elf.endian, signed=False)
         # vn_next = int.from_bytes(b[pos:(pos := pos + int(elf.unit.Word))], byteorder=elf.endian, signed=False)
 
+        r = cls.deserialize(elf, b)
+
+        assert isinstance(r, tuple) and len(r) == 5
+
+        vn_version, vn_cnt, vn_file, vn_aux, vn_next = r
+
         if vn_version != 1:
-            print('error: vn_version must be 1')
-        if vn_aux != 0 and vn_aux != Verneed.size(elf):
-            print('error: weird vn_aux offset')
+            print(f'error: vn_version must be 1 but {vn_version}')
+        # if vn_aux != 0 and vn_aux != Verneed.size(elf):
+        #     print(f'warning: vn_aux ({vn_aux}) is not the same with the size of Verneed ({Verneed.size(elf)})')
 
         if not (dynstr_editor := StrTabEditor(elf, SECTION.DYNSTR)):
             return None
@@ -300,6 +315,8 @@ class Verneed(Ver[Vernaux]):
 
         verneed.version = vn_version
         verneed.cnt = vn_cnt
+        verneed.aux = vn_aux
+        verneed.next = vn_next
 
         return verneed
 
@@ -408,6 +425,8 @@ class VerauxTable(Generic[V]):
         self.insert(key, value)
 
     def append(self, version: V):
+        if isinstance(version.next, int):
+            version.next = None
         self.size += 1
 
         if not (v := self.head):
@@ -415,6 +434,7 @@ class VerauxTable(Generic[V]):
             return
 
         while next_v := v.next:
+            assert not isinstance(next_v, int)
             v = next_v
 
         v.next = version # type: ignore
@@ -422,6 +442,9 @@ class VerauxTable(Generic[V]):
     def insert(self, index: int, version: V):
         if not isinstance(version, Veraux):
             raise ValueError
+
+        if isinstance(version.next, int):
+            version.next = None
 
         self.size += 1
 
@@ -441,6 +464,7 @@ class VerauxTable(Generic[V]):
             self.head = version
         else:
             while (next_v := v.next) and (index := index - 1):
+                assert not isinstance(next_v, int)
                 v = next_v
             v.next = version # type: ignore
             version.next = next_v # type: ignore
@@ -462,13 +486,17 @@ class Version(Element):
         return [elf.unit.Half]
 
     @classmethod
-    def from_bytes(cls, elf: Elf, b: bytes):
+    def from_bytes(cls, elf: Elf, b: bytes) -> Version:
         from ..editors.symbol_version_editor import SymbolVersionEditor
 
         symver_editor = SymbolVersionEditor(elf)
         vna_other = cls.deserialize(elf, b)
         assert isinstance(vna_other, int)
-        if vna_other != 0:
+        if vna_other == 0:
+            return Version('LOCAL', None, False)
+        elif vna_other == 1:
+            return Version('GLOBAL', None, False)
+        else:
             # https://refspecs.linuxfoundation.org/LSB_3.0.0/LSB-PDA/LSB-PDA.junk/symversion.html
             if hidden := bool(vna_other & 0x8000):
                 vna_other &= ~0x8000
@@ -480,8 +508,6 @@ class Version(Element):
                 # print(f'Could not find version {vna_other} in the symbol version table. This is likely a bug. Please report it.', file=sys.stderr)
                 # ver.name = ver.soname = f'INVALID_{hex(vna_other)}'
                 return Version(f'INVALID({hex(vna_other)})', f'INVALID({hex(vna_other)})', False)
-        else:
-            return Version(None, None, False)
 
     def to_bytes(self, elf: Elf) -> bytes:
         from ..editors.symbol_version_editor import SymbolVersionEditor
@@ -495,8 +521,11 @@ class Version(Element):
             value |= 0x8000
         return self.serialize(elf, value)
 
-    def is_local(self):
-        return not self.name
+    def is_local(self) -> bool:
+        return self.name == 'LOCAL'
+    
+    def is_global(self) -> bool:
+        return self.name == 'GLOBAL'
 
     def __str__(self):
         if self.is_local():

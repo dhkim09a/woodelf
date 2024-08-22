@@ -6,7 +6,7 @@ from .section_editor import SectionEditor
 
 from .section_header_editor import SectionHeaderEditor
 
-from ..util import gnu_hash
+from ..util import MalformedElfError, gnu_hash
 from ..core import Editor, Elf
 from ..elements.symbol_version import Verdef, Verdaux, Verneed, Vernaux, VersionTable, VerdefTable, VerneedTable, Version
 from ..constants import SECTION, DYNAMIC_ENTRY_TAG
@@ -48,7 +48,7 @@ class SymbolVersionEditor(Editor):
         if SECTION.DYNAMIC.value in section_names:
             # self.dynent_editor = self.elf.get_editor(EDITOR.DYNAMIC_ENTRY)
             self.__dynent_editor = DynamicEntryEditor(elf)
-        
+
         if SECTION.DYNSTR.value in section_names:
             # self.dynstr_editor = self.elf.get_editor(EDITOR.STRTAB, SECTION.DYNSTR)
             self.__dynstr_editor = StrTabEditor(elf, SECTION.DYNSTR)
@@ -75,19 +75,50 @@ class SymbolVersionEditor(Editor):
 
         verdef_table = VerdefTable()
 
-        c = self.__version_d.read_content(rev_idx=rev_idx)
+        if not (c := self.__version_d.read_content(rev_idx=rev_idx)):
+            return
 
-        while c:
-            verdef_bytes = c[0:Verdef.size(self.elf)]
-            c = c[Verdef.size(self.elf):]
-            verdef = Verdef.from_bytes(self.elf, verdef_bytes)
-            for i in range(verdef.cnt):
-                verdaux_bytes = c[0:Verdaux.size(self.elf)]
-                c = c[Verdaux.size(self.elf):]
-                verdaux = Verdaux.from_bytes(self.elf, verdaux_bytes)
-                if not verdaux:
-                    return None
+        # while c:
+        #     verdef_bytes = c[0:Verdef.size(self.elf)]
+        #     c = c[Verdef.size(self.elf):]
+        #     verdef = Verdef.from_bytes(self.elf, verdef_bytes)
+        #     for i in range(verdef.cnt):
+        #         verdaux_bytes = c[0:Verdaux.size(self.elf)]
+        #         c = c[Verdaux.size(self.elf):]
+        #         verdaux = Verdaux.from_bytes(self.elf, verdaux_bytes)
+        #         if not verdaux:
+        #             return None
+        #         verdef.append_veraux(verdaux)
+        #     verdef_table.append(verdef)
+
+        verdef_pos: int = 0
+        while True:
+            verdef_bytes = c[verdef_pos:verdef_pos + Verdef.size(self.elf)]
+
+            if not (verdef := Verdef.from_bytes(self.elf, verdef_bytes)):
+                raise MalformedElfError('Could not parse verdef table')
+
+            assert isinstance(verdef.aux, int)
+
+            verdaux_pos: int = verdef_pos + verdef.aux
+
+            for verdaux_idx in range(verdef.cnt):
+                verdaux_bytes = c[verdaux_pos:verdaux_pos + Verdaux.size(self.elf)]
+
+                if not (verdaux := Verdaux.from_bytes(self.elf, verdaux_bytes)):
+                    raise MalformedElfError('malformed verdaux section')
+
+                assert isinstance(verdaux.next, int)
+
+                verdaux_pos = verdaux_pos + verdaux.next
                 verdef.append_veraux(verdaux)
+
+            assert isinstance(verdef.next, int)
+
+            if verdef.next < Verdef.size(self.elf) or verdef_pos + verdef.next >= len(c):
+                break
+
+            verdef_pos += verdef.next
             verdef_table.append(verdef)
 
         return verdef_table
@@ -98,21 +129,53 @@ class SymbolVersionEditor(Editor):
 
         verneed_table = VerneedTable()
 
-        c = self.__version_r.read_content(rev_idx=rev_idx)
+        if not (c := self.__version_r.read_content(rev_idx=rev_idx)):
+            return
 
-        while c:
-            verneed_bytes = c[0:Verneed.size(self.elf)]
-            c = c[Verneed.size(self.elf):]
-            verneed = Verneed.from_bytes(self.elf, verneed_bytes)
-            if not verneed:
-                return
-            for i in range(verneed.cnt):
-                vernaux_bytes = c[0:Vernaux.size(self.elf)]
-                c = c[Vernaux.size(self.elf):]
-                vernaux = Vernaux.from_bytes(self.elf, vernaux_bytes)
-                if not vernaux:
-                    return
+        # while c:
+        #     verneed_bytes = c[0:Verneed.size(self.elf)]
+        #     c = c[Verneed.size(self.elf):]
+        #     verneed = Verneed.from_bytes(self.elf, verneed_bytes)
+        #     if not verneed:
+        #         return
+        #     for i in range(verneed.cnt):
+        #         vernaux_bytes = c[0:Vernaux.size(self.elf)]
+        #         c = c[Vernaux.size(self.elf):]
+        #         vernaux = Vernaux.from_bytes(self.elf, vernaux_bytes)
+        #         if not vernaux:
+        #             return
+        #         verneed.append_veraux(vernaux)
+        #     verneed_table.append(verneed)
+
+        verneed_pos: int = 0
+        while True:
+            verneed_bytes = c[verneed_pos:verneed_pos + Verneed.size(self.elf)]
+
+            if not (verneed := Verneed.from_bytes(self.elf, verneed_bytes)):
+                raise MalformedElfError('Could not parse verneed table')
+
+            assert isinstance(verneed.aux, int)
+
+            vernaux_pos: int = verneed_pos + verneed.aux
+
+            for vernaux_idx in range(verneed.cnt):
+                vernaux_bytes = c[vernaux_pos:vernaux_pos + Vernaux.size(self.elf)]
+
+                if not (vernaux := Vernaux.from_bytes(self.elf, vernaux_bytes)):
+                    raise MalformedElfError('malformed vernaux section')
+
+                assert isinstance(vernaux.next, int)
+
+                vernaux_pos = vernaux_pos + vernaux.next
                 verneed.append_veraux(vernaux)
+
+            assert isinstance(verneed.next, int)
+
+            if verneed.next < Verneed.size(self.elf) or verneed_pos + verneed.next >= len(c):
+                verneed.next = None
+                break
+
+            verneed_pos += verneed.next
             verneed_table.append(verneed)
 
         return verneed_table
@@ -160,11 +223,11 @@ class SymbolVersionEditor(Editor):
         sh.info = len(verneed_table)
 
         sheditor.write_section_header(SECTION.GNU_VERSION_R, sh)
-        
+
     def __write_versions(self, version_table: VersionTable):
         if not self.__version:
             return
-        
+
         versions = self.read_versions()
         assert versions
 
