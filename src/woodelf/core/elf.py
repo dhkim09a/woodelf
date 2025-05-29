@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from os import path as _p
 import re
 import tempfile
 from typing import Callable, Literal
@@ -78,7 +79,7 @@ class Elf:
                  prefix: str = '',
                  ) -> Elf | None:
         elf = Elf()
-        elf.revisions = [path]
+        elf.revisions = [_p.realpath(path)]
         # elf.lock = {}
         elf.workdir = tempfile.TemporaryDirectory(dir=elf.get_tmpdir(), prefix='woodelf-')
 
@@ -167,8 +168,8 @@ class Elf:
     def write(self, path: str, auto_adjust: bool = True, mkdirs=True):
         # if auto_adjust:
         #     self.auto_adjust()
-        if mkdirs:
-            os.makedirs(os.path.dirname(path), exist_ok=True)
+        if mkdirs and (dname := os.path.dirname(path)):
+            os.makedirs(dname, exist_ok=True)
         shutil.copy2(self.get_current_revision(), path)
 
     def close(self):

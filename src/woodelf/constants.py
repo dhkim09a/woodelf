@@ -342,6 +342,7 @@ class SECTION(Enum):
     SHSTRTAB = '.shstrtab'
     SYMTAB = '.symtab'
     STRTAB = '.strtab'
+    INTERP = '.interp'
 
     def __str__(self):
         return self.value
