@@ -84,11 +84,15 @@ class Elf:
         elf.workdir = tempfile.TemporaryDirectory(dir=elf.get_tmpdir(), prefix='woodelf-')
 
         if toolchain_path:
-            elf.objcopy = sh.Command(prefix + 'objcopy', search_paths=[toolchain_path]).bake('--pure')
+            # --pure                        Mark the output file as demand paged
+            # elf.objcopy = sh.Command(prefix + 'objcopy', search_paths=[toolchain_path]).bake('--pure')
+            elf.objcopy = sh.Command(prefix + 'objcopy', search_paths=[toolchain_path])
             elf.objdump = sh.Command(prefix + 'objdump', search_paths=[toolchain_path])
             elf.readelf = sh.Command(prefix + 'readelf', search_paths=[toolchain_path])
         else:
-            elf.objcopy = sh.Command(prefix + 'objcopy').bake('--pure')
+            # --pure                        Mark the output file as demand paged
+            # elf.objcopy = sh.Command(prefix + 'objcopy').bake('--pure')
+            elf.objcopy = sh.Command(prefix + 'objcopy')
             elf.objdump = sh.Command(prefix + 'objdump')
             elf.readelf = sh.Command(prefix + 'readelf')
 
