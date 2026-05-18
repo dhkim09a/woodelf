@@ -13,6 +13,7 @@ def package_files(directory):
 deps = [
     'sh',
     'hexdump',
+    'capstone',
 ]
 
 with open("README.md", "r") as fh:

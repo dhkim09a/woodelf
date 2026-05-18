@@ -33,7 +33,8 @@ class ELF_DATA(IntEnum):
         elif self == ELF_DATA.DATA2MSB:
             return 'big'
 
-        assert False, f'Unknown ELF_DATA: {self}'
+        # Use self.name to avoid triggering __str__, which would recurse here.
+        raise ValueError(f'Unknown ELF_DATA: {self.name}')
 
     def __str__(self) -> str:
         return self.endian()
