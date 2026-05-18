@@ -1,6 +1,5 @@
 from ..core.elf import Elf
-# from ..editors.strtab_editor import StrTabEditor
-from ..constants import ELF32, ELF64, SECTION
+from ..constants import ELF32, ELF64
 from ..core import Element
 
 
@@ -23,18 +22,14 @@ class SectionHeader(Element):
                 elf.unit.Xword, elf.unit.Xword]
 
     @classmethod
-    def from_bytes(cls, elf: Elf, b: bytes):
-        from ..editors.strtab_editor import StrTabEditor
+    def from_bytes(cls, elf: Elf, b: bytes, shstrtab: bytes = b''):
         r = cls.deserialize(elf, b)
         assert isinstance(r, tuple) and len(r) == 10
         sh_name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, sh_link, sh_info, sh_addralign, sh_entsize \
             = r
 
-        # shstrtab: StrTabEditor = elf.get_editor(EDITOR.STRTAB, SECTION.SHSTRTAB, _unsafe=True)
-        shstrtab = StrTabEditor(elf, SECTION.SHSTRTAB)
-
         sh = SectionHeader()
-        sh.name = shstrtab.get_str(sh_name, _unsafe=True)
+        sh.name = _str_at(shstrtab, sh_name)
         sh.type = sh_type
         sh.flags = sh_flags
         sh.addr = sh_addr
@@ -47,11 +42,11 @@ class SectionHeader(Element):
 
         return sh
 
-    def to_bytes(self, elf: Elf):
-        from ..editors.strtab_editor import StrTabEditor
-        # shstrtab: StrTabEditor = elf.get_editor(EDITOR.STRTAB, SECTION.SHSTRTAB)
-        shstrtab = StrTabEditor(elf, SECTION.SHSTRTAB)
-        return self.serialize(elf, shstrtab.find(self.name), self.type, self.flags, self.addr,
+    def to_bytes(self, elf: Elf, shstrtab: bytes = b''):
+        name_off = _find_str(shstrtab, self.name)
+        if name_off < 0:
+            raise ValueError(f'section name {self.name!r} not in shstrtab')
+        return self.serialize(elf, name_off, self.type, self.flags, self.addr,
                               self.offset, self.siz, self.link, self.info,
                               self.addralign, self.entsize)
 
@@ -76,3 +71,23 @@ class SectionHeaderTable(list[SectionHeader]):
         for sh in self:
             string += str(sh) + '\n'
         return string
+
+
+def _str_at(buf: bytes, offset: int) -> str:
+    if offset < 0 or offset >= len(buf):
+        return ''
+    end = buf.find(b'\x00', offset)
+    if end < 0:
+        end = len(buf)
+    return buf[offset:end].decode('ascii', errors='replace')
+
+
+def _find_str(buf: bytes, s: str) -> int:
+    needle = s.encode('ascii')
+    # Match either the empty string at offset 0 or a null-terminated occurrence.
+    if not needle:
+        return 0 if buf[:1] == b'\x00' else -1
+    pos = buf.find(b'\x00' + needle + b'\x00')
+    if pos < 0:
+        return -1
+    return pos + 1

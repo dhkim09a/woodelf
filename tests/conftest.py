@@ -81,6 +81,11 @@ class ElfBlueprint:
     dynsym_names: tuple[str, ...] = ("printf", "my_export")
     symtab_names: tuple[str, ...] = ("_start", "main", "data_obj")
 
+    # Name to give the section-name string table. Defaults to canonical
+    # ".shstrtab"; override (e.g. ".strtab") to exercise woodelf's
+    # shstrndx-based name resolution rather than a hard-coded name.
+    shstrtab_name: str = ".shstrtab"
+
 
 def _build_strtab(strings: list[str]) -> tuple[bytes, dict[str, int]]:
     """Pack strings into a string table; return bytes and {string -> offset}."""
@@ -103,7 +108,7 @@ def _build_elf(bp: ElfBlueprint) -> bytes:
         ".dynstr",
         ".symtab",
         ".strtab",
-        ".shstrtab",
+        bp.shstrtab_name,
         ".dynamic",
     ]
     shstrtab_bytes, sh_off = _build_strtab(shstrtab_names[1:])
@@ -218,7 +223,7 @@ def _build_elf(bp: ElfBlueprint) -> bytes:
         shdr(sh_off[".strtab"], SHT_STRTAB,
              0,
              0, off_strtab, len(strtab_bytes), 0, 0, 1, 0),
-        shdr(sh_off[".shstrtab"], SHT_STRTAB,
+        shdr(sh_off[bp.shstrtab_name], SHT_STRTAB,
              0,
              0, off_shstrtab, len(shstrtab_bytes), 0, 0, 1, 0),
         shdr(sh_off[".dynamic"], SHT_DYNAMIC,
@@ -290,3 +295,19 @@ def elf_blueprint(tmp_path) -> ElfBlueprint:
     with open(bp.path, "wb") as f:
         f.write(_build_elf(bp))
     return bp
+
+
+@pytest.fixture
+def elf_blueprint_factory(tmp_path):
+    """Build customized ELFs (e.g. with a non-canonical shstrtab name)."""
+    counter = {"n": 0}
+
+    def make(**overrides) -> ElfBlueprint:
+        counter["n"] += 1
+        path = str(tmp_path / f"synth_{counter['n']}.so")
+        bp = ElfBlueprint(path=path, **overrides)
+        with open(bp.path, "wb") as f:
+            f.write(_build_elf(bp))
+        return bp
+
+    return make

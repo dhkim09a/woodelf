@@ -329,6 +329,37 @@ class TestSectionEditorReadelfFallback:
         assert SectionEditor(elf, SECTION.TEXT).readelf_dump_section() is None
 
 
+class TestNonCanonicalShstrtabName:
+    def test_section_names_resolved_via_shstrndx(self, elf_blueprint_factory):
+        # Some toolchains (e.g. clang object files) point e_shstrndx at a
+        # section whose name isn't ".shstrtab". woodelf must follow the index,
+        # not the literal name. Reproduce by renaming the section to ".foo".
+        bp = elf_blueprint_factory(shstrtab_name=".foo")
+        elf = woodelf.parse(bp.path)
+        sht = SectionHeaderEditor(elf).read_section_header_table()
+
+        names = [sh.name for sh in sht]
+        assert names == [
+            "",
+            ".text",
+            ".dynsym",
+            ".dynstr",
+            ".symtab",
+            ".strtab",
+            ".foo",
+            ".dynamic",
+        ]
+
+    def test_lookup_by_name_works_with_non_canonical_shstrtab(
+        self, elf_blueprint_factory
+    ):
+        bp = elf_blueprint_factory(shstrtab_name=".foo")
+        elf = woodelf.parse(bp.path)
+        text = SectionHeaderEditor(elf).read_section_header(SECTION.TEXT)
+        assert text is not None
+        assert text.addr == bp.text_vaddr
+
+
 class TestSectionEditorInPlaceWrite:
     def test_size_preserving_write_uses_in_place_branch(self, elf_blueprint):
         # Regression: when the new content matches the current section size,
