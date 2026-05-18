@@ -5,8 +5,22 @@ jobs:
   debug:
     runs-on: self-hosted
     steps:
-      - name: dump env
+      - name: env before setup-python
         run: |
-          echo "--- RUNNER_TOOL_CACHE: '$RUNNER_TOOL_CACHE' ---"
-          echo "--- AGENT_TOOLSDIRECTORY: '$AGENT_TOOLSDIRECTORY' ---"
-          env | grep -E "RUNNER|AGENT|HOME" | sort
+          echo "RUNNER_TOOL_CACHE='$RUNNER_TOOL_CACHE'"
+          echo "AGENT_TOOLSDIRECTORY set? ${AGENT_TOOLSDIRECTORY+yes}"
+          echo "AGENT_TOOLSDIRECTORY value='$AGENT_TOOLSDIRECTORY'"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+        continue-on-error: true
+      - name: env after setup-python
+        if: always()
+        run: |
+          echo "RUNNER_TOOL_CACHE='$RUNNER_TOOL_CACHE'"
+          echo "AGENT_TOOLSDIRECTORY set? ${AGENT_TOOLSDIRECTORY+yes}"
+          echo "AGENT_TOOLSDIRECTORY value='$AGENT_TOOLSDIRECTORY'"
+          echo "--- ls RUNNER_TOOL_CACHE ---"
+          ls -la "$RUNNER_TOOL_CACHE" 2>&1 || true
+          echo "--- ls /Users/runner ---"
+          ls -la /Users/runner 2>&1 || true
