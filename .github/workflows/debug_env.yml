@@ -5,19 +5,11 @@ jobs:
   debug:
     runs-on: self-hosted
     steps:
-      - name: dump full env (filtered)
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: verify python
         run: |
-          echo "RUNNER_TOOL_CACHE='$RUNNER_TOOL_CACHE'"
-          echo "AGENT_TOOLSDIRECTORY='$AGENT_TOOLSDIRECTORY'"
-          echo "--- full env, ALL vars with runner/tool/agent ---"
-          env | grep -iE "runner|tool|agent" | sort
-      - name: download and run python-versions setup.sh manually
-        run: |
-          tmp=$(mktemp -d)
-          cd "$tmp"
-          curl -sL -o pyv.tgz "https://github.com/actions/python-versions/releases/download/3.11.9-9947079978/python-3.11.9-darwin-arm64.tar.gz"
-          tar xzf pyv.tgz
-          echo "--- setup.sh first 20 lines ---"
-          head -20 setup.sh
-          echo "--- running setup.sh ---"
-          bash setup.sh && echo "MANUAL SETUP OK" || echo "MANUAL SETUP FAILED"
+          which python
+          python --version
+          python -c "import sys; print(sys.executable)"
