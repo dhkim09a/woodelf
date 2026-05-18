@@ -77,10 +77,10 @@ class SectionEditor:
         current_rev = self.elf.get_current_revision()
         next_rev = tempfile.mktemp(dir=self.elf.workdir.name)
 
-        curr_content_len = self.read_content() or 0
+        curr_content = self.read_content() or b''
 
         if (len(content) > 0
-            and len(content) == curr_content_len
+            and len(content) == len(curr_content)
             and (she := SectionHeaderEditor(self.elf))
             and (sh := she.read_section_header(self.tag))):
             # she: SectionHeaderEditor = self.elf.get_editor(EDITOR.SECTION_HEADER)

@@ -327,3 +327,23 @@ class TestSectionEditorReadelfFallback:
         elf.readelf = sh.Command("false")
 
         assert SectionEditor(elf, SECTION.TEXT).readelf_dump_section() is None
+
+
+class TestSectionEditorInPlaceWrite:
+    def test_size_preserving_write_uses_in_place_branch(self, elf_blueprint):
+        # Regression: when the new content matches the current section size,
+        # write_content should patch the file directly instead of shelling out
+        # to `objcopy --update-section`. A buggy size check that compared an
+        # int to a bytearray sent every write through objcopy, which fails on
+        # minimal ELFs.
+        elf = woodelf.parse(elf_blueprint.path)
+        editor = SymbolEditor(elf, SECTION.SYMTAB)
+
+        syms = editor.read_symbol_table()
+        syms[2].value = 0xC0FFEE  # size-preserving mutation
+        assert editor.write_symbol_table(syms) is True
+
+        elf2 = woodelf.parse(elf.get_current_revision())
+        syms2 = SymbolEditor(elf2, SECTION.SYMTAB).read_symbol_table()
+        assert syms2[2].name == "main"
+        assert syms2[2].value == 0xC0FFEE
