@@ -20,14 +20,14 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="woodelf", # Replace with your own username
-    version="0.1.1",
+    name="woodelf",
+    version="0.1.2",
     author="Donghwi Kim",
-    author_email="dhkim09@kaist.ac.kr",
+    author_email="dhkim09a@gmail.com",
     description="Pure Python ELF file parser",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    # url="https://github.com/dhkim09a/subcmdparse",
+    url="https://github.com/dhkim09a-org/woodelf",
     packages=setuptools.find_packages(where='src'),
     # classifiers=[
     #     "Programming Language :: Python :: 3",
