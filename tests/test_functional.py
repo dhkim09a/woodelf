@@ -17,6 +17,7 @@ import shutil
 import struct
 
 import pytest
+import sh
 
 import woodelf
 from woodelf.constants import (
@@ -32,6 +33,7 @@ from woodelf.constants import (
 )
 from woodelf.editors.dynamic_entry_editor import DynamicEntryEditor
 from woodelf.editors.elf_header_editor import ElfHeaderEditor
+from woodelf.editors.section_editor import SectionEditor
 from woodelf.editors.section_header_editor import SectionHeaderEditor
 from woodelf.editors.strtab_editor import StrTabEditor
 from woodelf.editors.symbol_editor import SymbolEditor
@@ -313,3 +315,15 @@ class TestElfWriteSaveRoundTrip:
 
         reparsed = woodelf.parse(str(out))
         assert ElfHeaderEditor(reparsed).read_elf_header().entry == 0x12345
+
+
+class TestSectionEditorReadelfFallback:
+    def test_readelf_dump_section_returns_none_when_readelf_keeps_failing(
+        self, elf_blueprint
+    ):
+        # Regression: the retry loop must terminate. /usr/bin/false exits 1 on
+        # every call, so a buggy `while range(2):` would hang here forever.
+        elf = woodelf.parse(elf_blueprint.path)
+        elf.readelf = sh.Command("false")
+
+        assert SectionEditor(elf, SECTION.TEXT).readelf_dump_section() is None

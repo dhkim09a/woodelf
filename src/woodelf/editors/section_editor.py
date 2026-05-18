@@ -24,12 +24,13 @@ class SectionEditor:
         # self.readsection = elf.readelf.bake(x=1)
 
     def readelf_dump_section(self, rev_idx: int = -1) -> str | None:
-        # readelf rarely fails
-        while range(2):
+        # readelf rarely fails; retry once then give up.
+        for _ in range(2):
             try:
                 return self.elf.readelf(self.elf.revisions[rev_idx], x=self.name)
             except sh.ErrorReturnCode:
                 pass
+        return None
 
     def read_content(self, rev_idx: int = -1, no_ext_checking: bool = False) -> bytearray | None:
         from .section_header_editor import SectionHeaderEditor
