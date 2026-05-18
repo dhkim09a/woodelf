@@ -1,0 +1,12 @@
+name: debug-env
+on:
+  workflow_dispatch:
+jobs:
+  debug:
+    runs-on: self-hosted
+    steps:
+      - name: dump env
+        run: |
+          echo "--- RUNNER_TOOL_CACHE: '$RUNNER_TOOL_CACHE' ---"
+          echo "--- AGENT_TOOLSDIRECTORY: '$AGENT_TOOLSDIRECTORY' ---"
+          env | grep -E "RUNNER|AGENT|HOME" | sort
