@@ -5,11 +5,18 @@ jobs:
   debug:
     runs-on: self-hosted
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/github-script@v7
         with:
-          python-version: '3.11'
-      - name: verify python
-        run: |
-          which python
-          python --version
-          python -c "import sys; print(sys.executable)"
+          script: |
+            const keys = Object.keys(process.env).filter(k =>
+              /RUNNER|AGENT|TOOL|HOSTED|PYTHON/i.test(k)
+            ).sort();
+            for (const k of keys) console.log(`${k}=${process.env[k]}`);
+            console.log("--- cache dir exists? ---");
+            const fs = require('fs');
+            const tc = process.env.RUNNER_TOOL_CACHE;
+            console.log(`RUNNER_TOOL_CACHE=${tc}`);
+            if (tc) {
+              console.log(`exists: ${fs.existsSync(tc)}`);
+              if (fs.existsSync(tc)) console.log(`contents: ${fs.readdirSync(tc).join(", ")}`);
+            }
