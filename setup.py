@@ -21,7 +21,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="woodelf", # Replace with your own username
-    version="0.1.0",
+    version="0.1.1",
     author="Donghwi Kim",
     author_email="dhkim09@kaist.ac.kr",
     description="Pure Python ELF file parser",
