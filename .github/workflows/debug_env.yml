@@ -5,22 +5,19 @@ jobs:
   debug:
     runs-on: self-hosted
     steps:
-      - name: env before setup-python
+      - name: dump full env (filtered)
         run: |
           echo "RUNNER_TOOL_CACHE='$RUNNER_TOOL_CACHE'"
-          echo "AGENT_TOOLSDIRECTORY set? ${AGENT_TOOLSDIRECTORY+yes}"
-          echo "AGENT_TOOLSDIRECTORY value='$AGENT_TOOLSDIRECTORY'"
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-        continue-on-error: true
-      - name: env after setup-python
-        if: always()
+          echo "AGENT_TOOLSDIRECTORY='$AGENT_TOOLSDIRECTORY'"
+          echo "--- full env, ALL vars with runner/tool/agent ---"
+          env | grep -iE "runner|tool|agent" | sort
+      - name: download and run python-versions setup.sh manually
         run: |
-          echo "RUNNER_TOOL_CACHE='$RUNNER_TOOL_CACHE'"
-          echo "AGENT_TOOLSDIRECTORY set? ${AGENT_TOOLSDIRECTORY+yes}"
-          echo "AGENT_TOOLSDIRECTORY value='$AGENT_TOOLSDIRECTORY'"
-          echo "--- ls RUNNER_TOOL_CACHE ---"
-          ls -la "$RUNNER_TOOL_CACHE" 2>&1 || true
-          echo "--- ls /Users/runner ---"
-          ls -la /Users/runner 2>&1 || true
+          tmp=$(mktemp -d)
+          cd "$tmp"
+          curl -sL -o pyv.tgz "https://github.com/actions/python-versions/releases/download/3.11.9-9947079978/python-3.11.9-darwin-arm64.tar.gz"
+          tar xzf pyv.tgz
+          echo "--- setup.sh first 20 lines ---"
+          head -20 setup.sh
+          echo "--- running setup.sh ---"
+          bash setup.sh && echo "MANUAL SETUP OK" || echo "MANUAL SETUP FAILED"
